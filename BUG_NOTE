@@ -1,0 +1,7 @@
+  /* bug: 1 should be 1u
+     dtasks[T-1].n = n-(dtasks[T-1].vec1-vec1); */
+  /* another bug: pointer-subtraction is signed! 
+     dtasks[T-1u].n = n-(dtasks[T-1u].vec1-vec1); */
+  /* still wrong: because 8*(T-1u)  won't fit in 32 bits 
+     dtasks[T-1u].n = n-(unsigned)(dtasks[T-1u].vec1-vec1); */
+  /* right: dtasks[T-1u].n = n - (T-1u)*k; */
