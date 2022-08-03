@@ -65,30 +65,6 @@ Exists go done.
 entailer!.
 Qed.
 
-Ltac forward_spawn id arg wit ::=
-  match goal with gv : globals |- _ =>
-  make_func_ptr id; let f := fresh "f_" in set (f := gv id);
-  match goal with |- context[func_ptr' (NDmk_funspec _ _ (val * ?A) ?Pre _) f] =>
-    let Q := fresh "Q" in let R := fresh "R" in
-
-    evar (Q : A -> globals); evar (R : A -> val -> mpred);
-    replace Pre with (fun '(a, w) => PROPx [] (PARAMSx (a::nil)
-                                                       (GLOBALSx ((Q w) :: nil) (SEPx [R w a]))));
-    [ | let x := fresh "x" in extensionality x; destruct x as (?, x);
-        instantiate (1 := fun w a => _ w) in (value of R);
-        repeat (destruct x as (x, ?);
-        instantiate (1 := fun '(a, b) => _ a) in (value of Q);
-        instantiate (1 := fun '(a, b) => _ a) in (value of R));
-        etransitivity; [|symmetry; apply PROP_into_SEP_LAMBDA]; f_equal; f_equal; f_equal;
-        [ instantiate (1 := fun _ => _) in (value of Q); subst Q; f_equal; simpl; reflexivity
-        | unfold SEPx; extensionality; simpl; rewrite sepcon_emp;
-          (**) unfold R; (**) instantiate (1 := fun _ => _);
-          reflexivity]
-  ];
-  forward_call [A] funspec_sub_refl (f, arg, Q, wit, R); subst Q R;
-           [ .. | subst f]; try (subst f; simpl; cancel_for_forward_spawn)
-  end end.
-
 Lemma bundle_task_locks:
  forall numt go done p,
    field_at Ers t_task (DOT _go) (ptr_of go) p

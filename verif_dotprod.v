@@ -330,15 +330,6 @@ sep_apply (data_at_share_join _ _ _ (tarray tdouble (Zlength (fst contents)))
 cancel.
 Qed.
 
-Lemma data_at_array_float_value_eq:
-  forall sh1 sh2 n v1 v2 p,
-   readable_share sh1 ->
-   readable_share sh2 ->
-   data_at sh1 (tarray tdouble n) (map Vfloat v1) p *
-   data_at sh2 (tarray tdouble n) (map Vfloat v2) p 
-  |-- !! (v1=v2).
-Admitted.
-
 Lemma data_at_int_value_eq:
   forall sh1 sh2 v1 v2 p,
    readable_share sh1 ->
@@ -346,7 +337,67 @@ Lemma data_at_int_value_eq:
    data_at sh1 tuint (Vint v1) p *
    data_at sh2 tuint (Vint v2) p 
   |-- !! (v1=v2).
-Admitted.
+Proof.
+intros.
+unfold data_at.
+unfold field_at.
+simpl.
+Intros.
+unfold at_offset.
+destruct H1 as [? _].
+destruct p; try contradiction. simpl.
+eapply derives_trans; [eapply data_at_rec_share_join_values_cohere | ]; auto.
+intro. apply JMeq_eq in H2. discriminate.
+intro. apply JMeq_eq in H2. discriminate.
+apply prop_derives. congruence.
+Qed.
+
+Lemma data_at_float_value_eq:
+  forall sh1 sh2 v1 v2 p,
+   readable_share sh1 ->
+   readable_share sh2 ->
+   data_at sh1 tdouble (Vfloat v1) p *
+   data_at sh2 tdouble (Vfloat v2) p 
+  |-- !! (v1=v2).
+Proof.
+intros.
+unfold data_at.
+unfold field_at.
+simpl.
+Intros.
+unfold at_offset.
+destruct H1 as [? _].
+destruct p; try contradiction. simpl.
+eapply derives_trans; [eapply data_at_rec_share_join_values_cohere | ]; auto.
+intro. apply JMeq_eq in H2. discriminate.
+intro. apply JMeq_eq in H2. discriminate.
+apply prop_derives. congruence.
+Qed.
+
+Lemma data_at_array_float_value_eq:
+  forall sh1 sh2 n v1 v2 p,
+   readable_share sh1 ->
+   readable_share sh2 ->
+   data_at sh1 (tarray tdouble n) (map Vfloat v1) p *
+   data_at sh2 (tarray tdouble n) (map Vfloat v2) p 
+  |-- !! (v1=v2).
+Proof.
+intros.
+revert v2 n p; induction v1; destruct v2; simpl; intros.
+apply prop_right; auto.
+entailer!. list_simplify.
+entailer!. list_simplify.
+assert_PROP (Zlength v1=n-1 /\ Zlength v2=n-1). {
+  entailer!. list_solve.
+}
+change (Vfloat ?a :: ?b) with ([Vfloat a]++b).
+rewrite !(split2_data_at_Tarray_app 1) by (try reflexivity; list_solve).
+sep_apply (IHv1 v2 (n-1) (field_address0 (tarray tdouble n) (SUB 1) p)).
+sep_apply (data_at_singleton_array_inv sh1 tdouble [Vfloat a] (Vfloat a) p (eq_refl _)).
+sep_apply (data_at_singleton_array_inv sh2 tdouble [Vfloat f] (Vfloat f) p (eq_refl _)).
+sep_apply (data_at_float_value_eq sh1 sh2 a f p).
+Intros. subst. apply prop_right; auto.
+Qed.
 
 Lemma dtask_pred_input_eq: forall numt input1 input2  p,
           dtask_pred numt input1 REMEMBER p * 

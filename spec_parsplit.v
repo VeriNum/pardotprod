@@ -151,7 +151,7 @@ apply sub_glb_bot with (c:=Share.Lsh).
 exists (snd (Share.split Share.Lsh)).
 apply sepalg.join_comm.
 destruct (Share.split Share.Lsh) eqn:?H.
-apply split_join in H. auto.
+apply split_join in H. simpl. apply sepalg.join_comm; auto.
 rewrite Share.glb_commute.
 apply sub_glb_bot with (c:=Share.Rsh).
 exists (fst (Share.split Share.Rsh)).
