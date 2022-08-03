@@ -5,6 +5,7 @@ Require Import VST.concurrency.cancelable_invariants.
 Require Import VST.concurrency.lock_specs.
 Require Import VST.atomics.verif_lock.
 Require Import VST.floyd.library.
+Require Import basic_lemmas.
 Require Import spec_parsplit.
 Require Import parsplit.
 
@@ -226,11 +227,9 @@ unfold pi.
 
 (* ISSUE REPORT:
   1. forward_spawn needs to give a lot more error diagnostics 
-  2. needs "unfold R"
-  3. it's a shame that the thread function is required to use gv in that way
-  4. not canceling funcptr'
+  2. it's a shame that the thread function is required to use gv in that way
+  3. not canceling funcptr'
 *)
-
 
 forward_spawn _thread_worker
   (field_address (tarray t_task n) (SUB i) p)

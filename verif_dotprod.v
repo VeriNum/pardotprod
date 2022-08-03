@@ -1,5 +1,6 @@
 Require Import VST.floyd.proofauto.
 Require Import VST.concurrency.conclib.
+Require Import basic_lemmas.
 Require Import spec_parsplit.
 Require Import dotprod.
 
@@ -49,48 +50,6 @@ intros.
 unfold delta.
 apply Z.div_le_mono. lia.
 apply Z.mul_le_mono_nonneg_r; lia.
-Qed.
-
-Definition iota (n: Z) : list Z := map Z.of_nat (seq 0%nat (Z.to_nat n)).
-
-Lemma Zlength_iota: forall t, 0 <= t -> Zlength (iota t) = t.
-Proof.
-intros. unfold iota. rewrite Zlength_map. 
-rewrite Zlength_length; auto. rewrite seq_length; auto.
-Qed.
-
-#[export] Hint Rewrite Zlength_iota using lia : Zlength.
-
-Lemma iota_S: forall n, 0 <= n -> iota (n+1) = iota n ++ [n].
-Proof.
-intros.
-rewrite <- (Z2Nat.id n) by lia. clear.
-forget (Z.to_nat n) as i.
-unfold iota.
-rewrite Nat2Z.id.
-replace (Z.to_nat (Z.of_nat i + 1)) with (S i) by lia.
-rewrite seq_S.
-rewrite map_app. auto.
-Qed.
-
-Lemma Znth_iota:
- forall i n, 0 <= i < n -> Znth i (iota n) = i.
-Proof.
-intros.
-pose proof (Zlength_iota n ltac:(lia)).
-unfold iota in *.
-rewrite Zlength_map in H0.
-rewrite <- (Z2Nat.id n) in H0|-* by lia.
-rewrite <- (Z2Nat.id i) by lia.
-assert (Z.to_nat i < Z.to_nat n)%nat by lia.
-forget (Z.to_nat i) as j.
-forget (Z.to_nat n) as m.
-unfold iota in *.
-rewrite Nat2Z.id  in *.
-rewrite Znth_map by lia.
-rewrite <- nth_Znth.
-rewrite seq_nth by lia.
-reflexivity.
 Qed.
 
 Definition dtask_input_type : Type := (list float * list float) * (val*val).
@@ -330,75 +289,6 @@ sep_apply (data_at_share_join _ _ _ (tarray tdouble (Zlength (fst contents)))
 cancel.
 Qed.
 
-Lemma data_at_int_value_eq:
-  forall sh1 sh2 v1 v2 p,
-   readable_share sh1 ->
-   readable_share sh2 ->
-   data_at sh1 tuint (Vint v1) p *
-   data_at sh2 tuint (Vint v2) p 
-  |-- !! (v1=v2).
-Proof.
-intros.
-unfold data_at.
-unfold field_at.
-simpl.
-Intros.
-unfold at_offset.
-destruct H1 as [? _].
-destruct p; try contradiction. simpl.
-eapply derives_trans; [eapply data_at_rec_share_join_values_cohere | ]; auto.
-intro. apply JMeq_eq in H2. discriminate.
-intro. apply JMeq_eq in H2. discriminate.
-apply prop_derives. congruence.
-Qed.
-
-Lemma data_at_float_value_eq:
-  forall sh1 sh2 v1 v2 p,
-   readable_share sh1 ->
-   readable_share sh2 ->
-   data_at sh1 tdouble (Vfloat v1) p *
-   data_at sh2 tdouble (Vfloat v2) p 
-  |-- !! (v1=v2).
-Proof.
-intros.
-unfold data_at.
-unfold field_at.
-simpl.
-Intros.
-unfold at_offset.
-destruct H1 as [? _].
-destruct p; try contradiction. simpl.
-eapply derives_trans; [eapply data_at_rec_share_join_values_cohere | ]; auto.
-intro. apply JMeq_eq in H2. discriminate.
-intro. apply JMeq_eq in H2. discriminate.
-apply prop_derives. congruence.
-Qed.
-
-Lemma data_at_array_float_value_eq:
-  forall sh1 sh2 n v1 v2 p,
-   readable_share sh1 ->
-   readable_share sh2 ->
-   data_at sh1 (tarray tdouble n) (map Vfloat v1) p *
-   data_at sh2 (tarray tdouble n) (map Vfloat v2) p 
-  |-- !! (v1=v2).
-Proof.
-intros.
-revert v2 n p; induction v1; destruct v2; simpl; intros.
-apply prop_right; auto.
-entailer!. list_simplify.
-entailer!. list_simplify.
-assert_PROP (Zlength v1=n-1 /\ Zlength v2=n-1). {
-  entailer!. list_solve.
-}
-change (Vfloat ?a :: ?b) with ([Vfloat a]++b).
-rewrite !(split2_data_at_Tarray_app 1) by (try reflexivity; list_solve).
-sep_apply (IHv1 v2 (n-1) (field_address0 (tarray tdouble n) (SUB 1) p)).
-sep_apply (data_at_singleton_array_inv sh1 tdouble [Vfloat a] (Vfloat a) p (eq_refl _)).
-sep_apply (data_at_singleton_array_inv sh2 tdouble [Vfloat f] (Vfloat f) p (eq_refl _)).
-sep_apply (data_at_float_value_eq sh1 sh2 a f p).
-Intros. subst. apply prop_right; auto.
-Qed.
-
 Lemma dtask_pred_input_eq: forall numt input1 input2  p,
           dtask_pred numt input1 REMEMBER p * 
           dtask_pred numt input2 ANSWER p 
@@ -533,64 +423,11 @@ Qed.
 
 #[export] Hint Resolve task_array_local_facts: saturate_local.
 
-Lemma divu64_repr: (* move to floyd *)
- forall i j,
-  0 <= i <= Int64.max_unsigned ->
-  0 <= j <= Int64.max_unsigned ->
-  Int64.divu (Int64.repr i) (Int64.repr j) = Int64.repr (i / j).
-Proof.
-intros.
-unfold Int64.divu.
-rewrite !Int64.unsigned_repr by rep_lia.
-auto.
-Qed.
-
 Definition partial_dotprod_f (t numt: Z) (v12: list float * list float) : dtask_output_type :=
  let '(v1,v2) := v12 in
  let y :=  map (uncurry Float.mul) (combine v1 v2) in
  let n := Zlength y in
   sum (map (fun i => sum (sublist (delta n numt i) (delta n numt (i+1)) y)) (iota t)).
-
-Lemma in_iota:
-   forall n x, In x (iota n) <-> 0 <= x < n.
- Proof. intros.
- destruct (zlt n 0).
- split; try lia. unfold iota. 
- replace (Z.to_nat n) with 0%nat by lia. simpl. tauto.
-  rewrite <- (Z2Nat.id n) by lia.
-  induction (Z.to_nat n).
-  simpl. split; try lia.
-  rewrite inj_S. unfold Z.succ. rewrite iota_S by lia.
-  rewrite in_app.
-  split; intro.
-  destruct H.
-  rewrite IHn0 in H. lia.
-  hnf in H. destruct H; try contradiction.
-  lia.
-  destruct (zeq x (Z.of_nat n0)).
-  subst. right; hnf; auto.
-  left. rewrite IHn0. lia.
-Qed.
-
-Lemma NoDup_iota:
- forall n, NoDup (iota n).
-Proof.
-intros.
- destruct (zlt n 0).
- unfold iota.  
- replace (Z.to_nat n) with 0%nat by lia. simpl. constructor.
-  rewrite <- (Z2Nat.id n) by lia. clear g.
-  induction (Z.to_nat n).
-  simpl. constructor.
-  rewrite inj_S. unfold Z.succ. rewrite iota_S by lia.
- rewrite NoDup_app_iff.
- split; auto.
- split. constructor. intro Hx; inv Hx. constructor.
- intros.
- intro. destruct H0.
- subst x.
- apply in_iota in H. lia. inv H0.
-Qed.
 
 Lemma body_make_dotprod_tasks: semax_body Vprog Gprog f_make_dotprod_tasks make_dotprod_tasks_spec.
 Proof.
