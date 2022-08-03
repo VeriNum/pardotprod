@@ -40,7 +40,7 @@ COQDEP=coqdep
 COQPROJECT != cat _CoqProject
 COQFLAGS=$(COQPROJECT)
 
-proof: 
+proof: verif_dotprod.vo verif_parsplit.vo
 
 %.vo: %.v
 	$(COQC) $(COQFLAGS) $*.v

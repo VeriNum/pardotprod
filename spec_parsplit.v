@@ -44,9 +44,74 @@ Inductive query : Set := START | REMEMBER | ASK | ANSWER | ANSWERED.
 
 Open Scope gfield_scope.
 
-Lemma Ers_not_bot: Ers <> Share.bot. Admitted.
+Lemma Ers_not_bot: Ers <> Share.bot.
+Proof.
+unfold Ers.
+intro.
+apply lub_bot_e in H. destruct H.
+apply juicy_mem.extern_retainer_neq_bot; auto.
+Qed.
+
 Definition comp_Ers : share := Share.comp Ers.
-Lemma comp_Ers_not_bot: comp_Ers <> Share.bot. Admitted.
+Lemma comp_Ers_not_bot: comp_Ers <> Share.bot.
+Proof.
+unfold comp_Ers. unfold Ers.
+unfold extern_retainer.
+rewrite Share.demorgan1.
+intro.
+apply sub_glb_bot with (a:= snd (Share.split Share.Rsh)) in H.
+rewrite Share.glb_commute in H.
+apply sub_glb_bot with (a:= snd (Share.split Share.Rsh)) in H.
+-
+rewrite Share.glb_idem in H.
+destruct (Share.split Share.Rsh) eqn:?H.
+simpl in *. subst.
+pose proof Share.split_nontrivial _ _ _ H0.
+apply initialize.snd_split_fullshare_not_bot.
+apply H. auto.
+-
+apply sepalg.join_sub_trans with Share.Rsh.
+exists (fst (Share.split Share.Rsh)).
+apply sepalg.join_comm.
+apply split_join. destruct (Share.split Share.Rsh); simpl; auto.
+apply leq_join_sub.
+apply Share.ord_spec1.
+rewrite <- comp_Lsh_Rsh.
+rewrite <- Share.demorgan1.
+f_equal.
+symmetry.
+rewrite <- (glb_split_x Share.Lsh).
+apply Share.lub_absorb.
+-
+clear.
+apply leq_join_sub.
+assert (Share.comp (fst (Share.split Share.Rsh)) = 
+                 Share.lub Share.Lsh (snd (Share.split Share.Rsh))). {
+ apply join_top_comp.
+ split.
+ rewrite Share.distrib1.
+replace (Share.glb (fst (Share.split Share.Rsh)) Share.Lsh) with Share.bot.
+rewrite Share.lub_commute, Share.lub_bot.
+apply glb_split.
+symmetry.
+rewrite Share.glb_commute.
+apply sub_glb_bot with (c:=Share.Rsh).
+exists (snd (Share.split Share.Rsh)).
+apply split_join.
+destruct (Share.split Share.Rsh); auto.
+apply glb_Lsh_Rsh.
+rewrite Share.lub_commute.
+rewrite Share.lub_assoc.
+rewrite (Share.lub_commute (snd _)).
+destruct (Share.split Share.Rsh) eqn:?H. simpl.
+apply Share.split_together in H.
+rewrite H.
+apply lub_Lsh_Rsh.
+}
+rewrite H.
+apply Share.lub_upper2.
+Qed.
+
 Lemma join_Ers_comp_Ers: sepalg.join Ers comp_Ers Tsh.
 Proof. apply join_comp_Tsh. Qed.
 #[export] Hint Resolve Ers_not_bot comp_Ers_not_bot join_Ers_comp_Ers : shares.
@@ -55,10 +120,79 @@ Proof. apply join_comp_Tsh. Qed.
 (* Ews = Share.lub extern_retainer Share.Rsh *)
 
 Definition Ers2 := snd (Share.split Share.Rsh).
-Lemma Ers2_not_bot: Ers2 <> Share.bot. Admitted.
-Lemma join_Ers_Ers2: sepalg.join Ers Ers2 Ews. Admitted.
+Lemma Ers2_not_bot: Ers2 <> Share.bot. 
+Proof.
+unfold Ers2.
+intro.
+destruct (Share.split Share.Rsh) eqn:?H.
+simpl in *; subst.
+apply Share.split_nontrivial in H0; auto.
+unfold Share.Rsh in *.
+destruct (Share.split Share.top) eqn:?H.
+simpl in *; subst.
+apply Share.split_nontrivial in H; auto.
+apply Share.nontrivial; auto.
+Qed.
+
+Lemma join_Ers_Ers2: sepalg.join Ers Ers2 Ews.
+Proof.
+unfold Ers, Ers2, Ews.
+unfold extern_retainer.
+split.
+rewrite Share.glb_commute.
+rewrite Share.distrib1.
+match goal with |- Share.lub ?a ?b = _ => replace a with Share.bot; [replace b with Share.bot |] end.
+apply Share.lub_bot.
+symmetry.
+rewrite Share.glb_commute.
+apply glb_split.
+symmetry.
+apply sub_glb_bot with (c:=Share.Lsh).
+exists (snd (Share.split Share.Lsh)).
+apply sepalg.join_comm.
+destruct (Share.split Share.Lsh) eqn:?H.
+apply split_join in H. auto.
+rewrite Share.glb_commute.
+apply sub_glb_bot with (c:=Share.Rsh).
+exists (fst (Share.split Share.Rsh)).
+apply sepalg.join_comm.
+destruct (Share.split Share.Rsh) eqn:?H.
+apply split_join in H. auto.
+apply glb_Lsh_Rsh.
+rewrite Share.lub_assoc.
+f_equal.
+apply Share.split_together.
+destruct (Share.split Share.Rsh); auto.
+Qed.
 #[export] Hint Resolve Ers2_not_bot join_Ers_Ers2 : shares.
-Lemma readable_Ers2: readable_share Ers2. Admitted.
+
+Lemma readable_Ers2: readable_share Ers2. 
+Proof.
+unfold Ers2.
+red.
+red.
+red.
+intro.
+apply identity_share_bot in H.
+assert (Share.split Share.Rsh = (fst (Share.split Share.Rsh), snd (Share.split (Share.Rsh)))).
+destruct (Share.split Share.Rsh); auto.
+apply Share.split_together in H0.
+set (z := snd _) in H.
+rewrite <- H0 in H.
+subst z.
+clear H0.
+rewrite Share.glb_commute in H.
+rewrite Share.distrib1 in H.
+rewrite Share.glb_commute in H.
+rewrite Share.glb_idem in H.
+rewrite glb_split in H.
+rewrite Share.lub_commute in H.
+rewrite Share.lub_bot in H.
+destruct (Share.split Share.Rsh) eqn:?H.
+apply Share.split_nontrivial in H0; auto.
+apply juicy_mem.nonidentity_Rsh.
+rewrite H0; apply bot_identity.
+Qed.
 #[export] Hint Resolve readable_Ers2 :core.
 
 Definition t_task := Tstruct _task noattr.

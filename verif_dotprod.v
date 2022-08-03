@@ -59,7 +59,7 @@ intros. unfold iota. rewrite Zlength_map.
 rewrite Zlength_length; auto. rewrite seq_length; auto.
 Qed.
 
-Hint Rewrite Zlength_iota using lia : Zlength.
+#[export] Hint Rewrite Zlength_iota using lia : Zlength.
 
 Lemma iota_S: forall n, 0 <= n -> iota (n+1) = iota n ++ [n].
 Proof.
@@ -388,7 +388,7 @@ destruct contents1, contents2; simpl in *;
 congruence.
 Qed.
 
-Instance dtask_package : task_package :=
+#[export] Instance dtask_package : task_package :=
   Build_task_package dtask_input_type _ dtask_output_type
    dtask_pred 
    dtask_pred_local_facts
