@@ -1,10 +1,12 @@
 CC=gcc
 CFLAGS=-O2
 
-CFILES=dotprod.c parsplit.c
+CFILES= main.c dotprod.c parsplit.c
 
-dotprod: dotprod.o parsplit.o threads.o SC_atomics.o
+dotprod: main.o dotprod.o parsplit.o threads.o SC_atomics.o
 	gcc $^ -o $@
+
+main.o: main.c dotprod.h
 
 dotprod.o: dotprod.c parsplit.h
 
@@ -15,9 +17,9 @@ threads.o: threads.c threads.h SC_atomics.h
 SC_atomics.o: SC_atomics.c SC_atomics.h
 
 test: dotprod
-	time ./dotprod 1000000 8 1000
+	time ./dotprod 1000000 4 1000
 # Sample output of "make test": 
-# N=1000000  T=8  R=1000  result=249995018.955975
+# N=1000000  T=4  R=1000  result=249995018.955975
 #
 # real    0m1.549s
 # user    0m11.093s

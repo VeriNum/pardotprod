@@ -389,23 +389,8 @@ Definition make_dotprod_tasks_spec :=
    POST [ tvoid ]
      PROP() RETURN() SEP(library.mem_mgr gv; tasking t gv; TT).
 
-Definition test_spec :=
-  DECLARE _test 
-  WITH n: Z, t: Z, r: Z, gv: globals
-  PRE [ tuint, tuint, tuint ]
-     PROP (0 <= n <= Int.max_unsigned; 
-               1 <= t <= Int.max_unsigned; 
-               0 <= r <= Int.max_unsigned)
-     PARAMS (vint n; vint t; vint r)
-     SEP(data_at_ Ews tuint (gv _num_threads))
-  POST [ tdouble ]
-    EX x:float,
-     PROP()
-     RETURN (Vfloat x)
-     SEP(data_at_ Ews tuint (gv _num_threads); TT).
-
 Definition Gprog : funspecs :=
-   dotprod_worker_spec :: dotprod_spec :: test_spec :: 
+   dotprod_worker_spec :: dotprod_spec ::
     (DECLARE _malloc (@library.malloc_spec' CompSpecs)) ::
   [ exit_spec;
     make_tasks_spec dtask_package; 
