@@ -127,29 +127,23 @@ Qed.
 
 Definition q_share (q: query) : share :=
  match q with
- | START => Ews
  | REMEMBER => Ers2
  | ASK => Ers
  | ANSWER => Ers
- | ANSWERED => Ews
  end.
 
 Definition a_pred (q: query) (m: mpred) : mpred :=
  match q with
- | START => m
  | REMEMBER => emp
  | ASK => m
  | ANSWER => m
- | ANSWERED => m
  end.
 
 Definition answer_val (q: query) (v: val) :=
  match q with
- | START => Vundef
  | REMEMBER => Vundef
  | ASK => Vundef
  | ANSWER => v
- | ANSWERED => v
  end.
 
 Definition t_dtask := Tstruct _dotprod_task noattr.
@@ -197,98 +191,6 @@ Qed.
 
 #[export] Hint Resolve dtask_pred_valid_pointer : valid_pointer.
 
-Lemma dtask_pred_join1: forall numt input p,
-          dtask_pred numt input START p = 
-          dtask_pred numt input REMEMBER p * dtask_pred numt input ASK p.
-Proof.
-intros.
-unfold dtask_pred.
-destruct input as [contents [p1 p2]].
-apply pred_ext.
--
-Intros.
-rewrite !prop_true_andp by auto.
-simpl.
-assert_PROP (field_compatible t_dtask (DOT _result) p) by entailer!.
-rewrite <- !(field_at_share_join Ers Ers2 Ews)
- by apply join_Ers_Ers2.
-rewrite <- !(data_at_share_join Ers Ers2 Ews)
- by apply join_Ers_Ers2.
-cancel.
--
-Intros.
-rewrite prop_true_andp by auto.
-clear.
-rewrite !field_at_data_at.
-simpl q_share. unfold a_pred.
-simpl nested_field_type.
-assert_PROP (isptr p1 /\ isptr p2).
-entailer!.
-destruct H.
-sep_apply (data_at_share_join _ _ _ (tptr tdouble) p1 
-                   (field_address t_dtask (DOT _vec1) p)
-                    join_Ers_Ers2).
-sep_apply (data_at_share_join _ _ _ (tptr tdouble) p2 
-                   (field_address t_dtask (DOT _vec2) p)
-                    join_Ers_Ers2).
-sep_apply (data_at_share_join _ _ _ tuint (vint (Zlength (fst contents))) 
-                   (field_address t_dtask (DOT _n) p)
-                    join_Ers_Ers2).
-sep_apply (data_at_share_join _ _ _ (tarray tdouble (Zlength (fst contents)))
-                   (map Vfloat (fst contents)) p1
-                    join_Ers_Ers2).
-sep_apply (data_at_share_join _ _ _ (tarray tdouble (Zlength (fst contents)))
-                   (map Vfloat (snd contents)) p2
-                    join_Ers_Ers2).
-cancel.
-Qed.
-
-Lemma dtask_pred_join2: forall numt input p,
-          dtask_pred numt input ANSWERED p = 
-          dtask_pred numt input REMEMBER p * dtask_pred numt input ANSWER p.
-Proof.
-intros.
-unfold dtask_pred.
-destruct input as [contents [p1 p2]].
-apply pred_ext.
--
-Intros.
-rewrite !prop_true_andp by auto.
-simpl.
-assert_PROP (field_compatible t_dtask (DOT _result) p) by entailer!.
-rewrite <- !(field_at_share_join Ers Ers2 Ews)
- by apply join_Ers_Ers2.
-rewrite <- !(data_at_share_join Ers Ers2 Ews)
- by apply join_Ers_Ers2.
-cancel.
--
-Intros.
-rewrite prop_true_andp by auto.
-clear.
-rewrite !field_at_data_at.
-simpl q_share. unfold a_pred.
-simpl nested_field_type.
-assert_PROP (isptr p1 /\ isptr p2).
-entailer!.
-destruct H.
-sep_apply (data_at_share_join _ _ _ (tptr tdouble) p1 
-                   (field_address t_dtask (DOT _vec1) p)
-                    join_Ers_Ers2).
-sep_apply (data_at_share_join _ _ _ (tptr tdouble) p2 
-                   (field_address t_dtask (DOT _vec2) p)
-                    join_Ers_Ers2).
-sep_apply (data_at_share_join _ _ _ tuint (vint (Zlength (fst contents))) 
-                   (field_address t_dtask (DOT _n) p)
-                    join_Ers_Ers2).
-sep_apply (data_at_share_join _ _ _ (tarray tdouble (Zlength (fst contents)))
-                   (map Vfloat (fst contents)) p1
-                    join_Ers_Ers2).
-sep_apply (data_at_share_join _ _ _ (tarray tdouble (Zlength (fst contents)))
-                   (map Vfloat (snd contents)) p2
-                    join_Ers_Ers2).
-cancel.
-Qed.
-
 Lemma dtask_pred_input_eq: forall numt input1 input2  p,
           dtask_pred numt input1 REMEMBER p * 
           dtask_pred numt input2 ANSWER p 
@@ -334,8 +236,6 @@ Qed.
    dtask_pred 
    dtask_pred_local_facts
    dtask_pred_valid_pointer
-   dtask_pred_join1
-   dtask_pred_join2
    dtask_pred_input_eq.
 
 Definition dotprod_worker_spec :=
@@ -564,7 +464,7 @@ let inp :=
 field_compatible (tarray t_dtask numt) [] dtp ->
 field_compatible0 (tarray tdouble (Zlength v1)) [] p1 ->
 field_compatible0 (tarray tdouble (Zlength v1)) [] p2 ->
-pred_sepcon (ith_spectask dtask_package (fclo gv numt dtp) inp ANSWERED)
+pred_sepcon (ith_spectask dtask_package (fclo gv numt dtp) inp ANSWER)
   (fun i : Z => 0 <= i < numt)
 |-- data_at_ Ews (tarray t_dtask numt) dtp
       * data_at Ews (tarray tdouble (Zlength v1)) (map Vfloat v1) p1
@@ -611,7 +511,7 @@ sep_apply func_ptr'_emp.
 replace (fun y : Z => 0 <= y < Z.of_nat n + 1 /\ y <> Z.of_nat n)
  with (fun i : Z => 0 <= i < Z.of_nat n)
   by (extensionality j; apply prop_ext; split; intro; lia).
-fold (ith_spectask  dtask_package (fclo gv numt dtp) inp ANSWERED).
+fold (ith_spectask  dtask_package (fclo gv numt dtp) inp ANSWER).
 sep_apply IHn; try lia.
 clear IHn.
 clear t.
@@ -631,6 +531,9 @@ rewrite !Znth_iota by lia.
 rewrite !Zlength_sublist by lia.
 change (data_at_ ?sh ?t ?p) 
   with (data_at sh t (default_val t) p).
+sep_apply (field_at_share_join Ers Ers2 Ews t_dtask (DOT _vec1)); auto with shares.
+sep_apply (field_at_share_join Ers Ers2 Ews t_dtask (DOT _vec2)); auto with shares.
+sep_apply (field_at_share_join Ers Ers2 Ews t_dtask (DOT _n)); auto with shares.
 sep_apply (field_at_field_at_ Ews t_dtask (DOT _vec1)).
 sep_apply (field_at_field_at_ Ews t_dtask (DOT _vec2)).
 sep_apply (field_at_field_at_ Ews t_dtask (DOT _n)).
@@ -700,6 +603,8 @@ replace (field_address0 (tarray tdouble dt1) (SUB dt) p2)
 rewrite !field_address0_offset by auto with field_compatible.
 reflexivity.
 }
+sep_apply (data_at_share_join Ers Ers2 Ews (tarray tdouble (dt1-dt))); auto with shares.
+sep_apply (data_at_share_join Ers Ers2 Ews (tarray tdouble (dt1-dt))); auto with shares.
 cancel.
 Qed.
 
@@ -856,7 +761,7 @@ assert (
   * data_at Ews (tarray tdouble n) (map Vfloat v1) p1
   * data_at Ews (tarray tdouble n) (map Vfloat v2) p2
   * data_at Ews (tarray t_dtask numt) (map nthtask (iota numt)) dtp
- |-- spectasks_list dtask_package (fclo gv numt dtp) inp START);
+ |-- spectasks_list dtask_package (fclo gv numt dtp) inp ASK);
  [ | sep_apply H8; cancel]. {
  unfold spectasks_list.
  rewrite pred_sepcon_eq.
@@ -942,12 +847,15 @@ assert (field_address0 (tarray t_dtask  (Z.of_nat t + 1)) (SUB Z.of_nat t) dtp
   rewrite  !field_address0_offset by auto with field_compatible.
   reflexivity. 
 }
+ rewrite prop_true_andp by (split; lia).
  set (k := delt _ - delt _).
 
  rewrite !H7. clear H7.
  rewrite !sublist_map.
+rewrite <-  (field_at_share_join Ers Ers2 Ews t_dtask (DOT _vec1)); auto with shares.
+rewrite <- (field_at_share_join Ers Ers2 Ews t_dtask (DOT _vec2)); auto with shares.
+rewrite <- (field_at_share_join Ers Ers2 Ews t_dtask (DOT _n)); auto with shares.
  cancel.
-
  assert (field_address0 (tarray tdouble (delt (Z.of_nat t + 1))) (SUB delt (Z.of_nat t)) p1
        = field_address0 (tarray tdouble n) (SUB delt (Z.of_nat t)) p1). {
     rewrite  !field_address0_offset by auto with field_compatible.
@@ -960,14 +868,14 @@ assert (field_address0 (tarray t_dtask  (Z.of_nat t + 1)) (SUB Z.of_nat t) dtp
     reflexivity.
 }
  rewrite H7; clear H7.
+rewrite <- !(data_at_share_join Ers Ers2 Ews) by auto with shares.
 cancel.
-
 }
  unfold fclo. rewrite Zlength_map, Zlength_iota. lia. lia.
 
  forward.
 deadvars!.
-freeze FR2 := - (spectasks_list dtask_package (fclo gv numt dtp) inp ANSWERED)
+freeze FR2 := - (spectasks_list dtask_package (fclo gv numt dtp) inp ANSWER)
    (data_at Ews (tptr t_dtask) dtp (gv _dtasks)).
 unfold spectasks_list.
 unfold fclo at 2.
@@ -980,7 +888,7 @@ forward_for_simple_bound numt
      SEP (FRZL FR2;
      data_at Ews (tptr t_dtask) dtp (gv _dtasks);
      pred_sepcon
-      (ith_spectask dtask_package (fclo gv numt dtp) inp ANSWERED)
+      (ith_spectask dtask_package (fclo gv numt dtp) inp ANSWER)
       (fun i : Z => 0 <= i < numt)))%assert.
 +
 entailer!.
@@ -1061,6 +969,7 @@ rewrite !Znth_map by (rewrite Zlength_iota; lia).
 simpl fst; simpl snd.
 rewrite !Znth_iota by lia.
 rewrite <- field_at_SUB_t_DOT_result by (auto; lia).
+rewrite prop_true_andp by (split; lia).
 cancel.
 +
 

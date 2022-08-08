@@ -360,9 +360,9 @@ forward_for_simple_bound (Zlength fclo)
     SEP (data_at Ews (tarray t_task 1) [(Vundef, (Vundef, Znth 0 fclo))] p;
            pred_sepcon (ith_husk fclo inputs p) (fun j : Z => 1 <= j < i);
            pred_sepcon (ith_task TP fclo p) (fun j : Z => i <= j < Zlength fclo);
-           pred_sepcon (ith_spectask TP fclo inputs START)
+           pred_sepcon (ith_spectask TP fclo inputs ASK)
                    (fun j : Z => i <= j < Zlength fclo);
-           ith_spectask TP fclo inputs START 0))%assert.
+           ith_spectask TP fclo inputs ASK 0))%assert.
 -
 entailer!.
 replace (fun y : Z => 0 <= y < Zlength fclo /\ y <> 0)
@@ -373,14 +373,13 @@ replace (fun j => 1 <= j < 1) with (fun j :Z => False)
 rewrite pred_sepcon_False.
 cancel.
 -
-rewrite (pred_sepcon_isolate i zeq (ith_spectask TP fclo inputs START) ) by lia.
+rewrite (pred_sepcon_isolate i zeq (ith_spectask TP fclo inputs ASK) ) by lia.
 Intros.
-freeze FR1 := - (ith_spectask TP fclo inputs START i).
+freeze FR1 := - (ith_spectask TP fclo inputs ASK i).
 unfold ith_spectask.
 Intros.
 sep_apply (func_ptr'_isptr (task_f_spec TP) (fst (Znth i fclo))).
-sep_apply (task_pred_isptr (Zlength fclo) (Znth i inputs) START (snd (Znth i fclo))).
-rewrite task_pred_join1.
+sep_apply (task_pred_isptr (Zlength fclo) (Znth i inputs) ASK (snd (Znth i fclo))).
 Intros.
 rename H2 into Pclo; rename H3 into Pf.
 thaw FR1.
@@ -443,7 +442,6 @@ replace  (fun j : Z => Zlength fclo <= j < Zlength fclo)
  by (clear; extensionality j; apply prop_ext; split; intros; lia).
 rewrite !pred_sepcon_False.
 unfold ith_spectask.
-rewrite task_pred_join1.
 Intros.
 forward.
 forward.
@@ -451,10 +449,10 @@ rewrite Znth_0_cons.
 fold (fst (Znth 0 fclo)).
 fold (snd (Znth 0 fclo)).
 forward_call.
-sep_apply (eq_sym (task_pred_join2 (Zlength fclo) (Znth 0 inputs) (snd (Znth 0 fclo)))).
 assert (func_ptr' (task_f_spec TP) (fst (Znth 0 fclo))
-           * task_pred (Zlength fclo) (Znth 0 inputs) ANSWERED (snd (Znth 0 fclo))
-          |-- ith_spectask TP fclo inputs ANSWERED 0)
+           * task_pred (Zlength fclo) (Znth 0 inputs) REMEMBER (snd (Znth 0 fclo))
+           * task_pred (Zlength fclo) (Znth 0 inputs) ANSWER (snd (Znth 0 fclo))
+          |-- ith_spectask TP fclo inputs ANSWER 0)
    by (unfold ith_spectask; cancel).
 sep_apply H1; clear H1.
 forward_for_simple_bound (Zlength fclo)
@@ -463,9 +461,9 @@ forward_for_simple_bound (Zlength fclo)
     SEP (data_at Ews (tarray t_task 1) [(Vundef, (Vundef, Znth 0 fclo))] p;
            pred_sepcon (ith_task TP fclo p) (fun j : Z => 1 <= j < i);
            pred_sepcon (ith_husk fclo inputs p) (fun j : Z => i <= j < Zlength fclo);
-           pred_sepcon (ith_spectask TP fclo inputs ANSWERED)
+           pred_sepcon (ith_spectask TP fclo inputs ANSWER)
                  (fun j : Z => 1 <= j < i);
-           ith_spectask TP fclo inputs ANSWERED 0))%assert.
+           ith_spectask TP fclo inputs ANSWER 0))%assert.
 +
 replace  (fun j : Z => 1 <= j < 1)
   with (fun j:Z => False) 
@@ -528,10 +526,9 @@ replace (fun y : Z => 1 <= y < i+1 /\ y <> i)
 replace (fun y : Z => i <= y < Zlength fclo /\ y <> i)
   with  (fun j : Z => i+1 <= j < Zlength fclo)
  by (clear; extensionality j; apply prop_ext; split; intros; lia).
-cancel.
-sep_apply (task_pred_contents_eq (Zlength fclo)  (Znth i inputs) contents (snd (Znth i fclo))).
+sep_apply task_pred_contents_eq.
 Intros. subst contents.
-sep_apply (eq_sym (task_pred_join2 (Zlength fclo) (Znth i inputs) (snd (Znth i fclo)))).
+cancel.
 unfold ith_spectask.
 cancel.
 +

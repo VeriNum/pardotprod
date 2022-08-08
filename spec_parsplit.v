@@ -15,7 +15,7 @@ Definition spawn_spec := DECLARE _spawn spawn_spec.
 Definition malloc_spec := DECLARE _malloc malloc_spec'.
 Definition exit_spec := DECLARE _exit exit_spec'.
 
-Inductive query : Set := START | REMEMBER | ASK | ANSWER | ANSWERED.
+Inductive query : Set := REMEMBER | ASK | ANSWER.
 
 #[export] Class task_package : Type := 
  {
@@ -27,12 +27,6 @@ Inductive query : Set := START | REMEMBER | ASK | ANSWER | ANSWERED.
              task_pred numt contents q p |-- !! isptr p;
   task_pred_valid_pointer: forall numt contents q p, 
              task_pred numt contents q p |-- valid_pointer p;
-  task_pred_join1: forall numt contents p,
-          task_pred numt contents START p = 
-          task_pred numt contents REMEMBER p * task_pred numt contents ASK p;
-  task_pred_join2: forall numt contents p,
-          task_pred numt contents ANSWERED p = 
-          task_pred numt contents REMEMBER p * task_pred numt contents ANSWER p;
   task_pred_contents_eq: forall numt contents1 contents2  p,
           task_pred numt contents1 REMEMBER p * 
           task_pred numt contents2 ANSWER p 
@@ -43,12 +37,19 @@ Inductive query : Set := START | REMEMBER | ASK | ANSWER | ANSWERED.
 #[export] Hint Resolve task_pred_isptr : saturate_local.
 #[export] Hint Resolve task_pred_valid_pointer : valid_pointer.
 
+
 Open Scope gfield_scope.
 
 Definition t_task := Tstruct _task noattr.
 
 Section TASK.
  Variable TP : task_package.
+
+Definition task_pred_START numt contents p :=
+          task_pred numt contents REMEMBER p * task_pred numt contents ASK p.
+
+Definition task_pred_END numt contents p :=
+          task_pred numt contents REMEMBER p * task_pred numt contents ANSWER p.
 
 Definition task_f_spec :=
  WITH numt: Z, clo : val, contents: task_input_type
@@ -132,7 +133,8 @@ Definition ith_spectask
    (inputs: list task_input_type)
    (q: query) (i: Z)  :=
    func_ptr' task_f_spec (fst (Znth i fclo)) *
-   task_pred (Zlength fclo) (Znth i inputs) q (snd (Znth i fclo)).
+    task_pred (Zlength fclo) (Znth i inputs) REMEMBER (snd (Znth i fclo)) *
+    task_pred (Zlength fclo) (Znth i inputs) q (snd (Znth i fclo)).
 
 Definition spectasks_list
    (fclo: list (val*val)) (inputs: list task_input_type)
@@ -146,10 +148,10 @@ Definition do_tasks_spec :=
  PRE [ tptr t_task, tuint ]
     PROP(1 <= Zlength fclo < 10000) 
     PARAMS (p; Vint (Int.repr (Zlength fclo))) 
-    SEP(task_array fclo p; spectasks_list fclo inputs START)
+    SEP(task_array fclo p; spectasks_list fclo inputs ASK)
  POST [ tvoid ]
     PROP() RETURN()
-    SEP(task_array fclo p; spectasks_list fclo inputs ANSWERED).
+    SEP(task_array fclo p; spectasks_list fclo inputs ANSWER).
 
 Definition Gprog : funspecs :=
   [ spawn_spec; makelock_spec; freelock_spec; acquire_spec; release_spec;
