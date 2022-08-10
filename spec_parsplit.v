@@ -1,12 +1,12 @@
 Require Import VST.floyd.proofauto.
-Open Scope logic.
-
 Require Import VST.concurrency.conclib.
 Require Import VST.concurrency.lock_specs.
 Require Import VST.atomics.verif_lock.
 Require Import VST.floyd.library.
 Require Import parsplit.
 Require Import basic_lemmas.
+Open Scope logic.
+Open Scope gfield_scope.
 
 #[export] Instance CompSpecs : compspecs. make_compspecs prog. Defined.
 Definition Vprog : varspecs. mk_varspecs prog. Defined.
@@ -17,8 +17,7 @@ Definition exit_spec := DECLARE _exit exit_spec'.
 
 Inductive query : Set := REMEMBER | ASK | ANSWER.
 
-#[export] Class task_package : Type := 
- {
+#[export] Class task_package : Type := {
   task_input_type : Type;
   task_input_inh: Inhabitant task_input_type;
   task_output_type : Type;
@@ -37,63 +36,54 @@ Inductive query : Set := REMEMBER | ASK | ANSWER.
 #[export] Hint Resolve task_pred_isptr : saturate_local.
 #[export] Hint Resolve task_pred_valid_pointer : valid_pointer.
 
-
-Open Scope gfield_scope.
-
 Definition t_task := Tstruct _task noattr.
 
 Section TASK.
  Variable TP : task_package.
 
-Definition task_pred_START numt contents p :=
-          task_pred numt contents REMEMBER p * task_pred numt contents ASK p.
-
-Definition task_pred_END numt contents p :=
-          task_pred numt contents REMEMBER p * task_pred numt contents ANSWER p.
-
 Definition task_f_spec :=
- WITH numt: Z, clo : val, contents: task_input_type
+ WITH T: Z, clo : val, contents: task_input_type
  PRE [ tptr tvoid ]
-    PROP() PARAMS(clo) SEP (task_pred numt contents ASK clo)
+    PROP() PARAMS(clo) SEP (task_pred T contents ASK clo)
  POST [ tvoid ]
-    PROP() RETURN() SEP(task_pred numt contents ANSWER clo).
+    PROP() RETURN() SEP(task_pred T contents ANSWER clo).
 
-Definition task_inv (numt: Z) (q: query) (p: val) : mpred :=
+Definition task_inv (T: Z) (q: query) (p: val) : mpred :=
   EX f: val, EX clo: val,
   field_at Ers t_task (DOT _f) f p *
   field_at Ers t_task (DOT _closure) clo p *
   func_ptr' task_f_spec f *
   EX contents: task_input_type,
-  task_pred numt contents q clo.
+  task_pred T contents q clo.
 
-Definition task_locks (numt: Z) (p: val) : mpred :=
+Definition task_locks (T: Z) (p: val) : mpred :=
  EX go: lock_handle, EX done: lock_handle,
   field_at Ers  t_task (DOT _go) (ptr_of go) p *
   field_at Ers  t_task (DOT _done) (ptr_of done) p *
-  lock_inv Ers go (task_inv numt ASK p) *
-  lock_inv Ers done (task_inv numt ANSWER p).
+  lock_inv Ers go (task_inv T ASK p) *
+  lock_inv Ers done (task_inv T ANSWER p).
 
 Definition thread_worker_spec :=
  DECLARE _thread_worker
-  WITH arg: val, numt_gv: Z*globals  (* need gv only to satisfy forward_spawn *)
+  WITH arg: val, T_gv: Z*globals  (* need gv only to satisfy forward_spawn *)
   PRE [ tptr tvoid ]
      PROP()
-     PARAMS (arg) GLOBALS(snd numt_gv)
-     SEP (task_locks (fst numt_gv) arg)
+     PARAMS (arg) GLOBALS(snd T_gv)
+     SEP (task_locks (fst T_gv) arg)
   POST [ tint ]
      PROP()
      RETURN (Vint Int.zero)
      SEP ().
 
 Definition ith_task (fclo: list (val*val)) (p: val) (i: Z) : mpred :=
- let n := Zlength fclo in 
+ let T := Zlength fclo in 
  EX go: lock_handle, EX done: lock_handle,
-  field_at Ers2  (tarray t_task n) (SUB i DOT _go) (ptr_of go) p *
-  field_at Ers2  (tarray t_task n) (SUB i DOT _done) (ptr_of done) p *
-  field_at Ews (tarray t_task n) (SUB i DOT _f) (fst (Znth i fclo)) p *
-  field_at Ews (tarray t_task n) (SUB i DOT _closure) (snd (Znth i fclo)) p *
-  lock_inv comp_Ers go (task_inv n ASK (field_address (tarray t_task n) (SUB i) p)) *
-  lock_inv comp_Ers done (task_inv  n ANSWER (field_address (tarray t_task n) (SUB i) p)).
+  field_at Ers2  (tarray t_task T) (SUB i DOT _go) (ptr_of go) p *
+  field_at Ers2  (tarray t_task T) (SUB i DOT _done) (ptr_of done) p *
+  field_at Ews (tarray t_task T) (SUB i DOT _f) (fst (Znth i fclo)) p *
+  field_at Ews (tarray t_task T) (SUB i DOT _closure) (snd (Znth i fclo)) p *
+  lock_inv comp_Ers go (task_inv T ASK (field_address (tarray t_task T) (SUB i) p)) *
+  lock_inv comp_Ers done (task_inv T ANSWER (field_address (tarray t_task T) (SUB i) p)).
 
 Definition task_array (fclo: list (val*val)) (p: val) : mpred :=
   !! field_compatible (tarray t_task (Zlength fclo)) nil p &&
@@ -102,18 +92,16 @@ Definition task_array (fclo: list (val*val)) (p: val) : mpred :=
 
 Definition make_tasks_spec :=
  DECLARE _make_tasks 
- WITH n: Z, gv: globals
+ WITH T: Z, gv: globals
  PRE [ tuint ]
-   PROP (1 <= n < 10000)
-   PARAMS (Vint (Int.repr n)) GLOBALS(gv)
+   PROP (1 <= T < 10000)
+   PARAMS (Vint (Int.repr T)) GLOBALS(gv)
    SEP(mem_mgr gv)
  POST [ tptr t_task ]
   EX p:val,
    PROP ( )
    RETURN (p)
-   SEP (mem_mgr gv; 
-          task_array (Zrepeat (Vundef,Vundef) n) p;
-          TT).
+   SEP (mem_mgr gv; task_array (Zrepeat (Vundef,Vundef) T) p; TT).
 
 Definition initialize_task_spec :=
  DECLARE _initialize_task
@@ -139,8 +127,7 @@ Definition ith_spectask
 Definition spectasks_list
    (fclo: list (val*val)) (inputs: list task_input_type)
    (q : query) :=
-  pred_sepcon (ith_spectask fclo inputs q) 
-              (fun i => 0 <= i < Zlength fclo).
+  pred_sepcon (ith_spectask fclo inputs q) (fun i => 0 <= i < Zlength fclo).
 
 Definition do_tasks_spec :=
  DECLARE _do_tasks
@@ -159,5 +146,3 @@ Definition Gprog : funspecs :=
     thread_worker_spec; make_tasks_spec; initialize_task_spec; do_tasks_spec ].
 
 End TASK.
-
-

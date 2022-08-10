@@ -310,7 +310,7 @@ Definition f_thread_worker := {|
 Definition f_make_tasks := {|
   fn_return := (tptr (Tstruct _task noattr));
   fn_callconv := cc_default;
-  fn_params := ((_n, tuint) :: nil);
+  fn_params := ((_T, tuint) :: nil);
   fn_vars := nil;
   fn_temps := ((_tasks, (tptr (Tstruct _task noattr))) :: (_i, tuint) ::
                (_t, (tptr (Tstruct _task noattr))) ::
@@ -322,7 +322,7 @@ Definition f_make_tasks := {|
   (Ssequence
     (Scall (Some _t'1)
       (Evar _malloc (Tfunction (Tcons tuint Tnil) (tptr tvoid) cc_default))
-      ((Ebinop Omul (Etempvar _n tuint)
+      ((Ebinop Omul (Etempvar _T tuint)
          (Esizeof (Tstruct _task noattr) tuint) tuint) :: nil))
     (Sset _tasks
       (Ecast (Etempvar _t'1 (tptr tvoid)) (tptr (Tstruct _task noattr)))))
@@ -337,7 +337,7 @@ Definition f_make_tasks := {|
         (Sset _i (Econst_int (Int.repr 1) tint))
         (Sloop
           (Ssequence
-            (Sifthenelse (Ebinop Olt (Etempvar _i tuint) (Etempvar _n tuint)
+            (Sifthenelse (Ebinop Olt (Etempvar _i tuint) (Etempvar _T tuint)
                            tint)
               Sskip
               Sbreak)
@@ -418,7 +418,7 @@ Definition f_initialize_task := {|
 Definition f_do_tasks := {|
   fn_return := tvoid;
   fn_callconv := cc_default;
-  fn_params := ((_tasks, (tptr (Tstruct _task noattr))) :: (_n, tuint) ::
+  fn_params := ((_tasks, (tptr (Tstruct _task noattr))) :: (_T, tuint) ::
                 nil);
   fn_vars := nil;
   fn_temps := ((_i, tint) :: (_t'4, (tptr (Tstruct _atom_int noattr))) ::
@@ -432,7 +432,7 @@ Definition f_do_tasks := {|
     (Sset _i (Econst_int (Int.repr 1) tint))
     (Sloop
       (Ssequence
-        (Sifthenelse (Ebinop Olt (Etempvar _i tint) (Etempvar _n tuint) tint)
+        (Sifthenelse (Ebinop Olt (Etempvar _i tint) (Etempvar _T tuint) tint)
           Sskip
           Sbreak)
         (Ssequence
@@ -474,7 +474,7 @@ Definition f_do_tasks := {|
       (Sset _i (Econst_int (Int.repr 1) tint))
       (Sloop
         (Ssequence
-          (Sifthenelse (Ebinop Olt (Etempvar _i tint) (Etempvar _n tuint)
+          (Sifthenelse (Ebinop Olt (Etempvar _i tint) (Etempvar _T tuint)
                          tint)
             Sskip
             Sbreak)

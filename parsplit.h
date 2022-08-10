@@ -20,11 +20,11 @@
 
 struct task;
 
-struct task *make_tasks (unsigned n);
+struct task *make_tasks (unsigned T);
 
 void initialize_task (struct task *tasks,
 		      unsigned i,
 		      void (*f)(void *),
 		      void *closure);
 
-void do_tasks (struct task *tasks, unsigned n);
+void do_tasks (struct task *tasks, unsigned T);
