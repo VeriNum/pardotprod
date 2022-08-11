@@ -3,6 +3,30 @@ Require Import VST.msl.iter_sepcon.
 
 Open Scope logic.
 
+Lemma value_defined_tarray {cs: compspecs}:
+ forall t n vl,
+  Zlength vl = n -> 
+  Forall (value_defined t) vl ->
+  value_defined (tarray t n) vl.
+Proof.
+intros.
+red. rewrite type_induction.type_func_eq. unfold tarray.
+split; auto.
+subst.
+unfold unfold_reptype. simpl. rep_lia.
+Qed.
+
+Lemma map_inj: forall {A}{B} (f: A -> B), 
+   (forall u v, f u = f v -> u=v) ->
+   forall x y, 
+   map f x = map f y -> x = y.
+Proof.
+induction x; destruct y; simpl; intros; try discriminate; auto.
+inv H0.
+f_equal; auto.
+Qed.
+
+(*
 Lemma data_at_float_value_eq {cs: compspecs}:
   forall sh1 sh2 v1 v2 p,
    readable_share sh1 ->
@@ -50,6 +74,8 @@ intros.
 sep_apply data_at_values_cohere.
 Intros. inv H1. entailer!.
 Qed.
+
+*)
 
 Lemma divu64_repr: (* move to floyd *)
  forall i j,
