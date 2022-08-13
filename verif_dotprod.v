@@ -12,10 +12,10 @@ Open Scope logic.
 Definition delta n T t := t*n/T.
 
 Lemma delta_props n T t :
-  0 <= n /\  0 < T /\  0 <= t < T ->
+  0 <= n /\ 0 <= t < T ->
   0 <= delta n T t /\ delta n T t <= delta n T (t+1) <= n.
 Proof.
-intros * [? [? ?]]; unfold delta.
+intros * [? ?]; unfold delta.
 split3.
 -
   apply Z_div_nonneg_nonneg.  nia. lia.
@@ -63,13 +63,11 @@ Qed.
 Definition dtask_input_type : Type := (list float * list float) * (val*val).
 Definition dtask_output_type : Type := float.
 
-Definition sum (v: list float) :=
-  fold_left Float.add v Float.zero.
+Definition sum (v: list float) := fold_left Float.add v Float.zero.
 
 Definition dotprod (v12: list float * list float) : float :=
   let '(v1,v2) := v12 in
-  let y := map (uncurry Float.mul) (combine v1 v2) in
-  sum y.
+  sum (map (uncurry Float.mul) (combine v1 v2)).
 
 Definition dotprod_f (T: Z) (v12: list float * list float) : dtask_output_type :=
  let '(v1,v2) := v12 in
@@ -240,6 +238,56 @@ apply map_inj in H2; [ | congruence].
 congruence.
 Qed.
 
+Lemma make_REMEMBER_ASK:
+ forall T v1 v2 p1 p2 dtp n,
+ 0 <= n <= Int.max_unsigned ->
+ 0 < T ->
+  data_at Ews (tarray tdouble n) (map Vfloat v1) p1
+ * data_at Ews  (tarray tdouble n)  (map Vfloat v2) p2
+  * data_at Ews t_dtask (p1,(p2, (vint n, Vundef))) dtp
+|-- dtask_pred T ((v1,v2),(p1,p2)) REMEMBER dtp
+      * dtask_pred T ((v1,v2),(p1,p2)) ASK    dtp.
+Proof.
+intros.
+unfold dtask_pred; simpl.
+saturate_local.
+rewrite !prop_true_andp by (split; list_solve).
+clear H7 H5 H2.
+rewrite !Zlength_map in *.
+set (n := Zlength v1) in *.
+rewrite <-  !(data_at_share_join Ers Ers2 Ews (tarray tdouble n)); auto with shares.
+cancel.
+unfold_data_at (data_at _ _ _ _ ).
+ rewrite <-  (field_at_share_join Ers Ers2 Ews t_dtask (DOT _vec1)); auto with shares.
+ rewrite <- (field_at_share_join Ers Ers2 Ews t_dtask (DOT _vec2)); auto with shares.
+ rewrite <- (field_at_share_join Ers Ers2 Ews t_dtask (DOT _n)); auto with shares.
+cancel.
+Qed.
+
+Lemma unmake_REMEMBER_ANSWER:
+ forall T n v1 v2 p1 p2 dtp,
+  n = Zlength v1 ->
+  dtask_pred T (v1, v2, (p1, p2)) REMEMBER dtp
+  * dtask_pred T (v1, v2, (p1, p2)) ANSWER dtp
+  |-- data_at Ews t_dtask  (p1,(p2, (vint n, Vfloat (dotprod (v1,v2))))) dtp
+      * data_at Ews (tarray tdouble n) (map Vfloat v1) p1
+      * data_at Ews (tarray tdouble n) (map Vfloat v2) p2.
+Proof.
+intros.
+sep_apply dtask_pred_input_eq.
+Intros.
+unfold dtask_pred.
+Intros.
+simpl.
+set (s := sum _). clearbody s.
+rewrite <- H in *.
+rewrite <- !(data_at_share_join Ers Ers2 Ews (tarray tdouble n)) by auto with shares.
+cancel.
+repeat (unfold_data_at (data_at _ _ _ _)).
+rewrite <- !(field_at_share_join Ers Ers2 Ews) by auto with shares.
+cancel.
+Qed.
+
 #[export] Instance dtask_package : task_package :=
   Build_task_package dtask_input_type _ dtask_output_type
    dtask_pred 
@@ -259,6 +307,21 @@ Definition fclo (gv: globals) (T: Z) (dtp: val) : list (val*val) :=
   map (fun i => (gv _dotprod_worker, 
                          field_address0 (tarray t_dtask T) (SUB i) dtp)) 
         (iota T).
+
+Lemma Zlength_fclo: forall gv T dtp,
+  0 <= T -> Zlength (fclo gv T dtp) = T.
+Proof.
+ intros.
+ unfold fclo. rewrite Zlength_map. rewrite Zlength_iota; lia.
+Qed.
+
+Lemma snd_Znth_fclo:
+ forall t gv T dtp,
+  0 <= t < T ->
+  snd (Znth t (fclo gv T dtp)) = field_address0 (tarray t_dtask T) (SUB t) dtp.
+Proof.
+intros; unfold fclo; rewrite Znth_map, Znth_iota by list_solve; auto.
+Qed.
 
 Definition tasking T (gv: globals) :=
   EX tp:val, EX dtp: val,
@@ -287,16 +350,16 @@ Definition dotprod_spec :=
 
 Definition make_dotprod_tasks_spec :=
   DECLARE _make_dotprod_tasks
-  WITH t: Z, gv: globals
+  WITH T: Z, gv: globals
   PRE [ tuint ]
-     PROP (1 <= t < 10000)
-     PARAMS (vint t) GLOBALS (gv)
+     PROP (1 <= T < 10000)
+     PARAMS (vint T) GLOBALS (gv)
      SEP (library.mem_mgr gv;
            data_at_ Ews tuint (gv _num_threads);
            data_at_ Ews (tptr t_task) (gv _tasks);
            data_at_ Ews (tptr t_dtask) (gv _dtasks))
    POST [ tvoid ]
-     PROP() RETURN() SEP(library.mem_mgr gv; tasking t gv; TT).
+     PROP() RETURN() SEP(library.mem_mgr gv; tasking T gv; TT).
 
 Definition Gprog : funspecs :=
    dotprod_worker_spec :: dotprod_spec ::
@@ -330,7 +393,7 @@ forward_call .
 Intros tp.
 forward.
 forward.
-forward_call (tarray t_dtask t, gv).
+forward_call (tarray t_dtask T, gv).
 entailer!.
 simpl.
 f_equal; f_equal. f_equal; lia.
@@ -344,7 +407,6 @@ forward_if False. forward_call. contradiction. contradiction.
 forward_if True. contradiction. 
 forward.
 entailer!.
-rename t into T.
 Intros. clear H0.
 deadvars!.
 forward_for_simple_bound T
@@ -374,22 +436,20 @@ set (fclo' := map _ _ ++ _).
 forward_call (tp, t, (gv _dotprod_worker), 
                     field_address0 (tarray t_dtask T) (SUB t) dtp,
                     fclo').
-entailer!.
-simpl.
-rewrite field_address0_offset by auto with field_compatible.
-reflexivity.
-subst fclo'.
-list_solve.
+ {entailer!.
+  simpl.
+  rewrite field_address0_offset by auto with field_compatible.
+  reflexivity.
+ }
+  subst fclo'; list_solve.
 entailer!.
 apply sepcon_derives; auto.
 apply derives_refl'.
 f_equal.
 subst fclo'.
 rewrite upd_Znth_app2 by list_simplify.
-list_simplify.
-rewrite !Znth_iota by lia.
+list_simplify; rewrite !Znth_iota by lia.
 reflexivity.
-rewrite !Znth_iota by lia.
 rewrite <- app_nil_end.
 assert (i=t) by lia. subst.
 reflexivity.
@@ -473,238 +533,166 @@ sep_apply func_ptr'_emp.
 sep_apply IHn; try lia.
 clear IHn.
 clear t.
-rename n into t.
+rewrite inj_S in H4.
+assert (0 <= Z.of_nat n) by lia.
+forget (Z.of_nat n) as t. clear n.
 set (n := Zlength v1) in *.
 change task_pred with dtask_pred.
-unfold dtask_pred.
-subst inp.
-unfold fclo.
-rewrite !Znth_map by (rewrite ?Zlength_iota; lia).
-simpl.
-Intros. clear H5 H6.
-pose proof delta_props n T (Z.of_nat t) ltac:(rep_lia). fold delt in H5.
-rewrite !Znth_iota by lia.
-rewrite !Zlength_sublist by lia.
-sep_apply (field_at_share_join Ers Ers2 Ews t_dtask (DOT _vec1)); auto with shares.
-sep_apply (field_at_share_join Ers Ers2 Ews t_dtask (DOT _vec2)); auto with shares.
-sep_apply (field_at_share_join Ers Ers2 Ews t_dtask (DOT _n)); auto with shares.
-sep_apply (field_at_field_at_ Ews t_dtask (DOT _vec1)).
-sep_apply (field_at_field_at_ Ews t_dtask (DOT _vec2)).
-sep_apply (field_at_field_at_ Ews t_dtask (DOT _n)).
-sep_apply (field_at_field_at_ Ews t_dtask (DOT _result)).
-rewrite (split2_data_at__Tarray_app (Z.of_nat  t) (Z.of_nat t + 1)) by lia.
-
-replace (Z.of_nat t + 1 - Z.of_nat t) with 1 by lia.
-replace  (field_address0 (tarray t_dtask (Z.of_nat t + 1)) (SUB Z.of_nat t) dtp)
- with  (field_address0 (tarray t_dtask (Z.of_nat t)) (SUB Z.of_nat t) dtp)
+pose proof (delta_props n T t ltac:(rep_lia)). fold delt in H6.
+set (dt := delt t) in *.
+set (dt1 := delt (t + 1)) in *.
+rewrite (split2_data_at__Tarray_app t (t+1)) by lia.
+replace (t + 1 - t) with 1 by lia.
+replace  (field_address0 (tarray t_dtask (t+1)) (SUB t) dtp)
+ with  (field_address0 (tarray t_dtask t) (SUB t) dtp)
  by (auto with field_compatible).
-set (dt := delt (Z.of_nat t)) in *.
-set (dt1 := delt (Z.of_nat t + 1)) in *.
-
-sep_apply (data_at_share_join Ers Ers2 Ews (tarray tdouble (dt1-dt))); auto with shares.
-sep_apply (data_at_share_join Ers Ers2 Ews (tarray tdouble (dt1-dt))); auto with shares.
+rewrite snd_Znth_fclo by lia.
+rewrite !(sublist_split 0 dt dt1) by lia. rewrite !map_app.
+rewrite !(split2_data_at_Tarray_app dt dt1) by list_solve.
 cancel.
 rewrite data__at_singleton_array_eq.
-unfold_data_at (data_at_ _ _ _).
-repeat change (field_at ?sh ?t ?f _) with (field_at_ sh t f).
-repeat replace (field_address0 (tarray t_dtask (Z.of_nat t)) (SUB Z.of_nat t) dtp)
- with (field_address0 (tarray t_dtask T) (SUB Z.of_nat t) dtp)
-  by (auto with field_compatible).
-
-rewrite !(sublist_split 0 dt dt1) by lia.
-rewrite !map_app.
-rewrite !(split2_data_at_Tarray_app dt dt1) by list_solve.
-replace (field_address0 (tarray tdouble dt1) (SUB dt) p1)
-  with (field_address0 (tarray tdouble n) (SUB dt) p1)
-  by (auto with field_compatible).
-replace (field_address0 (tarray tdouble dt1) (SUB dt) p2)
-  with (field_address0 (tarray tdouble n) (SUB dt) p2)
-  by (auto with field_compatible).
+replace (field_address0 (tarray t_dtask t) (SUB t) dtp)
+  with (field_address0 (tarray t_dtask T) (SUB t) dtp)
+ by (auto with field_compatible).
+subst inp.
+rewrite !Znth_map by Zlength_solve.
+rewrite Zlength_fclo by lia.
+rewrite Znth_iota by lia.
+fold dt. fold dt1.
+replace  (field_address0 (tarray tdouble dt1) (SUB dt) p1)
+  with  (field_address0 (tarray tdouble n) (SUB dt) p1)
+ by (auto with field_compatible).
+replace  (field_address0 (tarray tdouble dt1) (SUB dt) p2)
+  with  (field_address0 (tarray tdouble n) (SUB dt) p2)
+ by (auto with field_compatible).
+sep_apply unmake_REMEMBER_ANSWER.
+rewrite Zlength_sublist by Zlength_solve.
 cancel.
-Qed.
-
-Lemma make_REMEMBER_ASK:
- forall T t v1 v2 p1 p2 dtp n inpt,
- 0 <= n <= Int.max_unsigned ->
- 0 <= t < T ->
- field_compatible0 (tarray tdouble n) nil p1 ->
- field_compatible0 (tarray tdouble n) nil p2 ->
- let dt := delta n T t in
- let dt1 := delta n T (t+1) in
- inpt = 
-        ((v1,v2),
-          (field_address0 (tarray tdouble n) (SUB dt) p1,
-           field_address0 (tarray tdouble n) (SUB dt) p2)) ->
-  data_at Ews (tarray tdouble (dt1 - dt))
-     (map Vfloat v1)
-     (field_address0 (tarray tdouble n) (SUB dt) p1)
- * data_at Ews  (tarray tdouble (dt1 - dt))
-      (map Vfloat v2)
-      (field_address0 (tarray tdouble n) (SUB dt) p2)
-  * data_at Ews t_dtask 
-           (field_address0 (tarray tdouble n) (SUB dt) p1,
-            (field_address0 (tarray tdouble n) (SUB dt) p2,
-             (vint (dt1 - dt), Vundef))) dtp
-|-- dtask_pred T inpt REMEMBER dtp
-      * dtask_pred T inpt ASK    dtp.
-Proof.
-intros.
-unfold dtask_pred; subst inpt; simpl.
-pose proof delta_0 n T.
-pose proof delta_props n T t ltac:(rep_lia).
-fold dt in H4. fold dt1 in H4.
-assert_PROP (Zlength v1 = dt1-dt /\ Zlength v2 = dt1-dt).
- entailer!. rewrite Zlength_map in *. lia.
-destruct H5. rewrite H5, H6.
-rewrite !prop_true_andp by lia.
-unfold fclo.
-rewrite <-  !(data_at_share_join Ers Ers2 Ews (tarray tdouble (dt1 - dt))); auto with shares.
-rewrite <- !sepcon_assoc.
-cancel.
-unfold_data_at (data_at _ _ _ _ ).
- rewrite <-  (field_at_share_join Ers Ers2 Ews t_dtask (DOT _vec1)); auto with shares.
- rewrite <- (field_at_share_join Ers Ers2 Ews t_dtask (DOT _vec2)); auto with shares.
- rewrite <- (field_at_share_join Ers Ers2 Ews t_dtask (DOT _n)); auto with shares.
-cancel.
-Qed.
-
-Lemma repr64_inj_unsigned:
-  forall i j,
-    0 <= i <= Int64.max_unsigned ->
-    0 <= j <= Int64.max_unsigned ->
-    Int64.repr i = Int64.repr j -> i=j.
-Proof.
-intros.
-rewrite <- (Int64.unsigned_repr i) by rep_lia.
-rewrite <- (Int64.unsigned_repr j) by rep_lia.
-congruence.
 Qed.
 
 Lemma body_dotprod: semax_body Vprog Gprog f_dotprod dotprod_spec.
 Proof.
 start_function.
 unfold tasking. Intros tp dtp.
-assert_PROP (field_compatible (tarray t_dtask T) nil dtp) as Hdtp by entailer!.
-rewrite <- H.
-set (n := Zlength v1) in *.
-assert (Hn: 0 <= n) by apply Zlength_nonneg.
-forward.
-forward.
-
-assert_PROP (field_compatible0 (tarray tdouble n) nil p1 /\
+set (n := Zlength v1) in *. rewrite <- H.
+assert_PROP (field_compatible0 (tarray t_dtask T) nil dtp /\
+                    field_compatible0 (tarray tdouble n) nil p1 /\
                     field_compatible0 (tarray tdouble n) nil p2) as H2 by  entailer!.
-destruct H2.
-pose proof delta_props' n T.
+destruct H2 as [Hdtp [? ?]].
+assert (Hn: 0 <= n) by rep_lia. 
+forward.
+forward.
 set (delt := delta n T) in *.
-assert (Hforce:  
-         forall t p, 
-          0 <= t <= T -> 
-          field_compatible0 (tarray tdouble n) [] p ->
-        force_val
-           (sem_add_ptr_int tdouble Unsigned p (vint (delt t))) 
-       = field_address0 (tarray tdouble n) (SUB (delt t)) p). {
-  intros.
- unfold sem_add_ptr_int.
- specialize (H4 t ltac:(lia)).
- rewrite sem_add_pi_ptr by (auto; rep_lia).
- rewrite field_address0_offset by auto with field_compatible.
- simpl. f_equal; lia.
-}
-  
-freeze FR1 := - (data_at Ews (tptr t_task) tp (gv _tasks))
-                (data_at Ews (tptr t_dtask) dtp (gv _dtasks))
-               (data_at_ Ews  (tarray t_dtask T) dtp).
-pose (nthtask i := (field_address0 (tarray tdouble n) (SUB (delt i)) p1,
-                            (field_address0 (tarray tdouble n) (SUB (delt i)) p2,
-                             (Vint (Int.repr (delt (i+1) - delt i)), Vundef)))).
+pose (nthtask i :=  ((sublist (delt i) (delt(i+1)) v1,sublist (delt i) (delt(i+1)) v2),
+                             (field_address0 (tarray tdouble n) (SUB (delt i)) p1,
+                              field_address0 (tarray tdouble n) (SUB (delt i)) p2))).
+freeze FR1:= (data_at Ews _ _ (gv _num_threads)) (task_array _ _ _).
 forward_for_simple_bound T 
    (EX t:Z,   
     PROP ()
     LOCAL (temp _delta (vint (delt t)); temp _T (vint T);
                 gvars gv; temp _vec1 p1; temp _vec2 p2; 
                 temp _n (vint n))
-   SEP (FRZL FR1;
-          data_at Ews (tptr t_task) tp (gv _tasks);
+   SEP (FRZL FR1; data_at Ews (tptr t_task) tp (gv _tasks);
           data_at Ews (tptr t_dtask) dtp (gv _dtasks);
-          data_at Ews (tarray t_dtask T) 
-             (map nthtask (iota t)
-                     ++ Zrepeat (default_val t_dtask) (T-t))
-             dtp ))%assert.
+          pred_sepcon (fun i => dtask_pred T (nthtask i) REMEMBER
+                                  (field_address (tarray t_dtask T) (SUB i) dtp)) (fun i => 0 <= i < t);
+          pred_sepcon (fun i => dtask_pred T (nthtask i) ASK
+                                  (field_address (tarray t_dtask T) (SUB i) dtp)) (fun i => 0 <= i < t);
+          data_at_ Ews (tarray t_dtask (T-t)) (field_address0 (tarray t_dtask T) (SUB t) dtp);
+          data_at Ews (tarray tdouble (n-delt t)) (map Vfloat (sublist (delt t) n v1))
+                       (field_address0 (tarray tdouble n) (SUB delt t) p1);
+          data_at Ews (tarray tdouble (n-delt t)) (map Vfloat (sublist (delt t) n v2))
+                       (field_address0 (tarray tdouble n) (SUB delt t) p2)))%assert.
 -
-entailer!. apply derives_refl.
+entailer!.
+rewrite !pred_sepcon_False' by lia.
+unfold delt. rewrite delta_0.
+rewrite !sublist_same by lia.
+pose proof (Zlength_nonneg v1).
+rewrite !field_address0_offset by auto with field_compatible.
+simpl.  normalize.
 -
 rename i into t.
-replace (T-t) with (1+(T-(t+1))) by lia.
-rewrite <- Zrepeat_app by lia.
-change (Zrepeat (default_val t_dtask) 1) with [ (Vundef,(Vundef,(Vundef,Vundef))) ].
+pose proof delta_props n T t ltac:(lia).
+fold delt in H5.
 forward.
 forward.
-rewrite Hforce by (auto; lia).
-
-list_simplify.
-rewrite upd_Znth_app2, upd_Znth_app1 by Zlength_solve.
-rewrite Zlength_map, Zlength_iota, Z.sub_diag by lia.
-unfold fst, snd.
-change (Zrepeat ?a 1) with [a].
-rewrite upd_Znth0.
-list_simplify. 
-
+replace (force_val _) with (field_address (tarray t_dtask T) (SUB t) dtp).
+2:{
+simpl.
+rewrite field_address_offset by auto with field_compatible.
+ unfold sem_add_ptr_int.
+ rewrite sem_add_pi_ptr by (auto; rep_lia).
+simpl. f_equal; lia.
+}
+rewrite (split2_data_at__Tarray_app 1 (T-t)) by lia.
+rewrite (data_at__eq Ews (tarray t_dtask 1)).
+erewrite data_at_singleton_array_eq by reflexivity.
+simpl projT2.
+Intros.
+rewrite field_address0_SUB_SUB by lia.
+replace (t + (T - t)) with T by lia.
+replace (T - t - 1) with (T - (t+1)) by lia.
+replace (1+t) with (t+1) by (clear; lia).
+replace  (field_address0 (tarray t_dtask T) (SUB t) dtp)
+ with  (field_address (tarray t_dtask T) (SUB t) dtp)
+  by auto with field_compatible.
+rewrite <- (field_at_data_at Ews (tarray t_dtask T) (SUB t)).
+forward.
+replace (force_val _) with (field_address0 (tarray tdouble n) (SUB delt t) p1)
+ by (rewrite sem_add_pi' by (auto; rep_lia);
+      rewrite field_address0_offset by auto with field_compatible;
+      simpl; f_equal; lia).
+forward.
+replace (force_val _) with (field_address0 (tarray tdouble n) (SUB delt t) p2)
+ by (rewrite sem_add_pi' by (auto; rep_lia);
+      rewrite field_address0_offset by auto with field_compatible;
+      simpl; f_equal; lia).
+forward.
+  { entailer!.
+    apply repr64_inj_unsigned in H20; try rep_lia.
+    rewrite Int.unsigned_repr in H20 by rep_lia.
+    lia. }  
 forward.
 forward.
-rewrite Hforce by (auto; lia). clear Hforce.
-list_simplify.
-rewrite upd_Znth_app2, upd_Znth_app1 by Zlength_solve. 
-rewrite Zlength_map, Zlength_iota, Z.sub_diag by lia.
-unfold fst, snd.
-change (Zrepeat ?a 1) with [a].
-rewrite upd_Znth0.
-list_simplify. 
-
-forward.
-entailer!.
-
-apply repr64_inj_unsigned in H15; try rep_lia.
-rewrite Int.unsigned_repr in H15 by rep_lia.
-lia.
-rewrite add_repr.
-rewrite !Int.unsigned_repr by rep_lia.
-rewrite mul64_repr.
+rewrite add_repr, !Int.unsigned_repr, mul64_repr  by rep_lia.
 rewrite divu64_repr; [ | | rep_lia].
-2:{ clear - H5 H0 Hn H1.
+2:{ clear - H4 H0 Hn H1.
   assert (T * Int.max_unsigned <= Int64.max_unsigned) by rep_lia.
   split; try lia.
   eapply Z.le_trans; [ | apply H].
   apply Z.mul_le_mono_nonneg; lia.
 }
-progress fold (delta n T (t+1)).
+fold (delta n T (t+1)).
 rewrite Int64.unsigned_repr
  by (pose proof delta_props n T t ltac:(lia); rep_lia).
-
-forward.
-forward.
-fold (delt (t+1)).
-list_simplify.
-rewrite upd_Znth_app2, upd_Znth_app1 by Zlength_solve. 
-rewrite Zlength_map, Zlength_iota, Z.sub_diag by lia.
-unfold fst, snd.
-change (Zrepeat ?a 1) with [a].
-rewrite upd_Znth0.
-list_simplify.
-
-forward.
-
+rewrite !(pred_sepcon_isolate t zeq _ (fun i:Z => 0 <= i < t+1)) by lia.
+replace (fun y : Z => 0 <= y < t + 1 /\ y <> t)
+ with (fun i : Z => 0 <= i < t)
+  by (extensionality j; apply prop_ext; split; intro; lia).
+replace (T - t - 1) with (T - (t+1)) by lia.
 entailer!.
-rewrite iota_S by lia.
-rewrite map_app.
-rewrite <- !app_assoc.
-apply  derives_refl.
-
+rewrite !(sublist_split (delt t) (delt(t+1)) (Zlength v1)) by lia.
+rewrite !map_app.
+ rewrite !(split2_data_at_Tarray_app (delt (t+1)-delt t)) by list_solve.
+rewrite !field_address0_SUB_SUB by lia.
+rewrite Z.sub_simpl_r.
+replace  (Zlength v1 - delt t - (delt (t + 1) - delt t)) with (Zlength v1 - delt (t+1)) by lia.
+replace (delt t + (Zlength v1 - delt t)) with (Zlength v1) by  lia.
+cancel.
+eapply derives_trans; [ | apply make_REMEMBER_ASK with (n:= delt (t+1) - delt t); lia].
+rewrite <- (field_at_data_at Ews (tarray t_dtask T) (SUB t)).
+cancel.
 -
-list_simplify.
 thaw FR1.
-make_func_ptr _dotprod_worker.
-change (func_ptr' _) with (func_ptr' (snd dotprod_worker_spec)).
-assert_PROP (isptr tp) by entailer!.
+replace (delt T) with n by (unfold delt; rewrite delta_T; lia).
+rewrite !Z.sub_diag.
+rewrite !sublist_nil. simpl map.
+rewrite data_at__eq.
+change (default_val (tarray _ 0)) with (@nil (reptype t_dtask)).
+rewrite !data_at_zero_array_eq by
+ (try apply field_address0_isptr; auto with field_compatible).
 forward.
 pose (inp := (map (fun i => 
                               ((sublist (delt i) (delt(i+1)) v1,
@@ -712,9 +700,11 @@ pose (inp := (map (fun i =>
                                (field_address0 (tarray tdouble n) (SUB delt i) p1,
                                 field_address0 (tarray tdouble n) (SUB delt i) p2)))
                           (iota T))).
+make_func_ptr _dotprod_worker.
+change (func_ptr' _) with (func_ptr' (snd dotprod_worker_spec)).
 forward_call (fclo gv T dtp ,inp,tp).
-  apply prop_right; unfold fclo; list_solve.
- 2: unfold fclo; list_solve.
+  apply prop_right; rewrite Zlength_fclo by lia; reflexivity.
+ 2: rewrite Zlength_fclo; lia.
 {
  subst Frame.
  instantiate (1 := [data_at Ews tuint (vint T) (gv _num_threads);
@@ -722,83 +712,32 @@ forward_call (fclo gv T dtp ,inp,tp).
                    data_at Ews (tptr t_dtask) dtp (gv _dtasks)]).
  simpl fold_right_sepcon.
  cancel.
-
+ sep_apply (@sepcon_pred_sepcon mpred Z _ _ _ ).
  unfold spectasks_list.
- rewrite pred_sepcon_eq.
- Exists (iota T).
- rewrite prop_true_andp
-   by (split; [intros; unfold fclo; rewrite Zlength_map, Zlength_iota by lia; 
-               apply in_iota| apply NoDup_iota]).
- pose proof delta_T n T ltac:(lia) ltac:(lia). fold delt in H8.
- rewrite <- (sublist_same _  (delt T) (map Vfloat v1) (eq_refl _))
-  by (   unfold fclo; rewrite Zlength_map, ?Zlength_iota; lia).
- rewrite <- (sublist_same _  (delt T) (map Vfloat v2) (eq_refl _))
-  by (   unfold fclo; rewrite Zlength_map, ?Zlength_iota; lia).
- rewrite <- H8.
- assert_PROP (field_compatible (tarray t_dtask T) nil dtp) by entailer!.
- clear - H1 H H0 H2 H3 H9.
- set (fclo1 := fclo _ _ _).
- rewrite <- (Z2Nat.id T) by lia.
- assert (Z.of_nat (Z.to_nat T) <= T) by lia.
- revert H4.
- forget (Z.to_nat T) as t.
- induction t; intros.
- simpl. change (delt  0) with 0.
- sep_apply data_at_zero_array_inv.
- sep_apply data_at_zero_array_inv.
- sep_apply data_at_zero_array_inv.
- sep_apply func_ptr'_emp.
- cancel.
- pose proof delta_props n T (Z.of_nat t) ltac:(rep_lia). fold delt in H5.
- rewrite inj_S. unfold Z.succ. rewrite iota_S by lia.
- rewrite iter_sepcon_app.
- rewrite !(sublist_split 0 (delt (Z.of_nat t)) (delt (Z.of_nat t + 1)))
-   by (rewrite ?Zlength_map; lia).
- rewrite !(split2_data_at_Tarray_app (delt (Z.of_nat t))) by list_solve.
- rewrite map_app.
- rewrite <- !sepcon_assoc.
-change (@app (val * (val * (val * val)))) with (@app (reptype t_dtask)).
- rewrite (split2_data_at_Tarray_app (Z.of_nat t) (Z.of_nat t + 1) Ews t_dtask)
-   by list_solve.
- rewrite split_func_ptr'.
- sep_apply IHt. lia. clear IHt.
- apply sepcon_derives.
- apply derives_refl.
- unfold iter_sepcon.
- unfold ith_spectask.
- replace (fst (Znth (Z.of_nat t) fclo1)) with (gv _dotprod_worker)
-   by (unfold fclo1, fclo; list_solve).
- change (snd dotprod_worker_spec)
-   with (task_f_spec dtask_package).
- cancel.
- simpl task_pred.
- replace (Z.of_nat t + 1 - Z.of_nat t) with 1 by lia.
-  erewrite data_at_singleton_array_eq by reflexivity.
- replace (Zlength fclo1) with T
-  by (unfold fclo1, fclo; rewrite Zlength_map, Zlength_iota by lia; auto).
-set (t' := Z.of_nat t) in *.
-rewrite !sublist_map.
-replace (snd (Znth t' fclo1)) with (field_address0 (tarray t_dtask T) (SUB t') dtp)
-  by (unfold fclo1, fclo; rewrite Znth_map, Znth_iota by list_solve; auto).  
- replace (field_address0 (tarray tdouble (delt _)) (SUB delt t') p1)
-    with (field_address0  (tarray tdouble n) (SUB delt t') p1)
+rewrite sepcon_comm.
+eapply derives_trans; [ apply distribute_pred_sepcon | ].
+apply func_ptr'_emp. rewrite <- split_func_ptr'; auto.
+rewrite Zlength_fclo by lia.
+apply pred_sepcon_derives; intros t ?.
+unfold ith_spectask.
+simpl task_pred.
+rewrite Zlength_fclo by lia.
+unfold fclo. subst inp.
+rewrite !Znth_map by list_solve. simpl.
+rewrite Znth_iota by rep_lia.
+fold (nthtask t).
+replace  (field_address0 (tarray t_dtask T) (SUB t) dtp)
+ with  (field_address (tarray t_dtask T) (SUB t) dtp)
   by auto with field_compatible.
- replace (field_address0 (tarray tdouble (delt _)) (SUB delt t') p2)
-    with (field_address0  (tarray tdouble n) (SUB delt t') p2)
-  by auto with field_compatible.
- replace (field_address0 (tarray t_dtask _) (SUB t') dtp) 
-    with (field_address0 (tarray t_dtask T) (SUB t') dtp) 
-  by auto with field_compatible.
- apply (make_REMEMBER_ASK T _ (sublist _ _ v1) (sublist _ _ v2) p1 p2); try assumption; try lia.
- subst inp; rewrite Znth_map by list_solve; rewrite Znth_iota by lia; reflexivity.
+change (func_ptr' _) with (func_ptr' (snd dotprod_worker_spec)).
+cancel.
 }
- forward.
-deadvars!.
+
+forward.
 freeze FR2 := - (spectasks_list dtask_package (fclo gv T dtp) inp ANSWER)
    (data_at Ews (tptr t_dtask) dtp (gv _dtasks)).
 unfold spectasks_list.
-unfold fclo at 2.
-rewrite Zlength_map, Zlength_iota by lia.
+rewrite Zlength_fclo by lia.
 forward_for_simple_bound T
   (EX t:Z, 
      PROP ()
@@ -826,19 +765,18 @@ forward.
 
 rewrite <- field_at_SUB_t_DOT_result by (auto; lia).
 forward.
+deadvars!.
 forward.
  pose proof delta_props (Zlength v1) T t ltac:(lia).
- fold n in H11.
- fold delt in H11.
+ fold n in H7.
+ fold delt in H7.
 entailer!.
 * 
- clear H27 H26 H25 H24 H23 H22 H21 H20 H19 H18
-         H17 H16 H15 H14 H13 H12.
+ clear H23 H22 H21 H20 H19 H18
+         H17 H16 H15 H14 H13 H12 H11 H10 H9 H8.
  f_equal.
  unfold partial_dotprod_f, dotprod_f.
- rewrite !Zlength_map, !Zlength_combine.
- rewrite <- H.
- rewrite !Z.min_id.
+ rewrite !Zlength_map, !Zlength_combine, <- H, !Z.min_id.
  rewrite iota_S by lia.
  rewrite map_app.
  change (map ?f [t]) with ([f t]).
@@ -852,8 +790,7 @@ entailer!.
  unfold dotprod.
  rewrite combine_sublist by lia.
  rewrite map_sublist.
- fold delt.
- auto.
+ reflexivity.
 *
 rewrite (pred_sepcon_isolate t zeq _ (fun i : Z => 0 <= i < T)) by lia.
 unfold ith_spectask.
@@ -873,10 +810,7 @@ rewrite prop_true_andp
  by (rewrite Znth_iota by lia; rewrite !Zlength_sublist; lia).
 rewrite !Znth_iota by lia.
 rewrite !Zlength_sublist by lia.
-unfold fclo.
-rewrite !Znth_map by (rewrite Zlength_iota; lia).
-simpl fst; simpl snd.
-rewrite !Znth_iota by lia.
+rewrite snd_Znth_fclo by lia.
 rewrite <- field_at_SUB_t_DOT_result by (auto; lia).
 rewrite prop_true_andp by (split; lia).
 cancel.

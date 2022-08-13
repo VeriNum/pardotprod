@@ -169,17 +169,8 @@ forward_call (gv, fun _ : lock_handle =>
                            task_inv TP T ANSWER (field_address (tarray t_task T) (SUB i) p)).
 Intros done.
 forward.
-replace  (field_address0 (tarray t_task (T - i)) (SUB 1)
-        (field_address0 (tarray t_task T) (SUB i) p))
-  with  (field_address0 (tarray t_task T) (SUB (i+1)) p).
-2: {
- clear - H H0 H1.
- pose proof H0.
- apply (field_compatible_Tarray_split _ i) in H2; [ | lia].
- destruct H2.
- rewrite !field_address0_offset by auto with field_compatible.
- simpl. normalize. f_equal. lia.
-}
+rewrite field_address0_SUB_SUB by lia.
+rewrite (Z.add_comm 1 i). rewrite <- Z.sub_add_distr.
 unfold_data_at (data_at _ t_task _ _).
 replace (field_address0 (tarray t_task T) (SUB i) p)
   with (field_address (tarray t_task T) (SUB i) p)
@@ -218,8 +209,9 @@ replace (T - i - 1) with (T - (i+1)) by lia.
 entailer!.
 rewrite (pred_sepcon_isolate i zeq _ (fun j : Z => 1 <= j < i + 1)) by lia.
 subst U.
+replace (fun y : Z => 1 <= y < i + 1 /\ y <> i) with (fun j : Z => 1 <= j < i)
+ by (extensionality j; apply prop_ext; lia).
 cancel.
-apply derives_refl'; f_equal. extensionality j; apply prop_ext; lia.
 - (* after the loop *)
 forward.
 Exists p.
@@ -228,7 +220,8 @@ unfold task_array.
 rewrite Zlength_Zrepeat by lia.
 rewrite Znth_Zrepeat by lia.
 change (data_at _ _ _ p) with (data_at_ Ews (tarray t_task 1) p).
-entailer!.
+rewrite !prop_true_andp by auto.
+cancel.
 Qed.
 
 Lemma body_initialize_task: semax_body Vprog (Gprog TP) 
@@ -242,14 +235,12 @@ destruct (zeq i 0).
 subst.
 forward.
 simpl.
+rewrite upd_Znth0.
 forward.
-simpl upd_Znth.
 unfold task_array.
-replace (upd_Znth 0 _ _)
- with  [(Vundef, (Vundef, Znth 0 (upd_Znth 0 fclo (f, clo))))]
-  by list_simplify.
-rewrite Zlength_upd_Znth.
-rewrite upd_Znth_same by lia.
+rewrite !upd_Znth0, !Znth_0_cons. simpl fst.
+rewrite Znth_upd_Znth_same, upd_Znth_Zlength by lia.
+erewrite data_at_singleton_array_eq by reflexivity.
 entailer!.
 apply derives_refl'.
 apply pred_sepcon_strong_proper. tauto.
@@ -328,14 +319,14 @@ cancel.
 -
 rewrite (pred_sepcon_isolate i zeq (ith_spectask TP fclo inputs ASK) ) by lia.
 Intros.
-freeze FR1 := - (ith_spectask TP fclo inputs ASK i).
-unfold ith_spectask.
+(*freeze FR1 := - (ith_spectask TP fclo inputs ASK i). *)
+unfold ith_spectask at 2.
 Intros.
 sep_apply (func_ptr'_isptr (task_f_spec TP) (fst (Znth i fclo))).
 sep_apply (task_pred_isptr (Zlength fclo) (Znth i inputs) ASK (snd (Znth i fclo))).
 Intros.
 rename H2 into Pclo; rename H3 into Pf.
-thaw FR1.
+(*thaw FR1.*)
 rewrite (pred_sepcon_isolate i zeq (ith_task TP fclo p)) by rep_lia.
 Intros.
 unfold ith_task at 2.
@@ -347,6 +338,7 @@ forward.
 thaw FR2.
 set (clo := snd (Znth i fclo)).
 set (f := fst (Znth i fclo)).
+rewrite <- !(field_at_share_join Ers Ers2 Ews) by apply join_Ers_Ers2.
 
 assert (
    field_at Ers (tarray t_task (Zlength fclo)) (SUB i DOT _f) f p
@@ -363,7 +355,6 @@ assert (
  repeat change ([?a; ArraySubsc i]) with ([a]++[ArraySubsc i]).
  rewrite !field_address_app. apply derives_refl.
 }
-rewrite <- !(field_at_share_join Ers Ers2 Ews) by apply join_Ers_Ers2.
 sep_apply H2. clear H2.
 forward_call release_simple (comp_Ers, go, 
   task_inv TP (Zlength fclo) ASK (field_address (tarray t_task (Zlength fclo)) (SUB i) p)).

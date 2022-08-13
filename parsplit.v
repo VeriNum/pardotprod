@@ -239,6 +239,7 @@ Definition _task : ident := $"task".
 Definition _tasks : ident := $"tasks".
 Definition _test : ident := $"test".
 Definition _thread_worker : ident := $"thread_worker".
+Definition _tp : ident := $"tp".
 Definition _vec1 : ident := $"vec1".
 Definition _vec2 : ident := $"vec2".
 Definition _w : ident := $"w".

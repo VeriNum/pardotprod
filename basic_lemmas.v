@@ -3,6 +3,159 @@ Require Import VST.msl.iter_sepcon.
 
 Open Scope logic.
 
+Lemma field_address0_SUB_SUB {cs: compspecs}:
+ forall t n1 n2 i j p,
+ n2 = j+n1 ->
+ 0 <= i <= n1 -> 0 <= j ->
+ field_address0 (tarray t n1) (SUB i) (field_address0 (tarray t n2) (SUB j) p) =
+ field_address0 (tarray t n2) (SUB (i+j)) p.
+Proof.
+intros * Hn2 Hn1 Hj.
+subst n2.
+unfold field_address0.
+destruct (field_compatible0_dec (tarray t (j + n1)) (SUB (i + j)) p).
+-
+rewrite !if_true.
++ simpl. rewrite offset_offset_val. f_equal. lia.
++
+eapply field_compatible0_array_smaller1; try eassumption; lia.
++
+rewrite if_true by (eapply field_compatible0_array_smaller1; try eassumption; lia).
+simpl.
+destruct f as [? [? [? [? [? ?]]]]].
+split3; auto. split3; [ | | split]; auto.
+*
+destruct p; try contradiction.
+red in H1|-*.
+unfold sizeof in *.
+simpl Ctypes.sizeof in *.
+rewrite Z.max_r in * by lia.
+rewrite Z.mul_add_distr_l in H1.
+pose proof (Ctypes.sizeof_pos t).
+simpl.
+rewrite <- (Ptrofs.repr_unsigned i0).
+rewrite ptrofs_add_repr.
+rewrite Ptrofs.unsigned_repr.
+lia.
+assert (Ctypes.sizeof t * n1 >= 0) by nia.
+rep_lia.
+*
+destruct p; try contradiction.
+simpl in H4.
+red in H2|-*; simpl in H2|-*.
+apply align_compatible_rec_Tarray. intros.
+eapply align_compatible_rec_Tarray_inv with (i:=i1+j) in H2; try lia.
+rewrite Z.mul_add_distr_l in H2.
+rewrite <- (Ptrofs.repr_unsigned i0), ptrofs_add_repr.
+rewrite Ptrofs.unsigned_repr.
+unfold sizeof.
+replace  (Ptrofs.unsigned i0 + (0 + Ctypes.sizeof t * j) + Ctypes.sizeof t * i1)
+ with   (Ptrofs.unsigned i0 + (Ctypes.sizeof t * i1 + Ctypes.sizeof t * j))
+  by lia; auto.
+rewrite Z.add_0_l.
+unfold sizeof.
+pose proof (Ctypes.sizeof_pos t).
+assert (0 <= Ctypes.sizeof t * j <= Ctypes.sizeof t * j + Ctypes.sizeof t * i1) by nia.
+red in H1.
+simpl in H1.
+rewrite Z.max_r in H1 by lia.
+rewrite Z.mul_add_distr_l in H1.
+assert (Ctypes.sizeof t * i1 <= Ctypes.sizeof t * n1) by nia.
+rep_lia.
+-
+if_tac; auto.
+if_tac; auto.
+contradiction n. clear n.
+simpl in H.
+auto with field_compatible.
+Qed.
+
+Lemma sepcon_pred_sepcon:
+ forall {A B : Type} {ND: NatDed A} {SL: SepLog A}{CA: ClassicalSep A}
+  (f1 f2: B -> A) (P: B -> Prop),
+ pred_sepcon f1 P * pred_sepcon f2 P = pred_sepcon (fun i => f1 i * f2 i) P.
+Proof.
+intros.
+rewrite !pred_sepcon_eq.
+apply pred_ext.
+-
+Intros l1 l2.
+normalize.
+assert (Permutation l1 l2). {
+apply NoDup_Permutation; auto.
+intros. rewrite H,H1. tauto.
+}
+rewrite <- (iter_sepcon_permutation f2 H3).
+Exists l1.
+rewrite prop_true_andp by auto.
+clear - CA SL ND.
+induction l1. simpl. rewrite emp_sepcon; auto.
+simpl. rewrite !sepcon_assoc. apply sepcon_derives.
+auto. rewrite <- !sepcon_assoc. pull_left (f2 a).
+rewrite !sepcon_assoc.
+apply sepcon_derives; auto.
+-
+Intros l.
+Exists l l.
+rewrite !prop_true_andp by auto.
+clear H H0.
+induction l. simpl. rewrite emp_sepcon; auto.
+simpl. rewrite !sepcon_assoc. apply sepcon_derives.
+auto. rewrite <- !sepcon_assoc. pull_left (f2 a).
+rewrite !sepcon_assoc.
+apply sepcon_derives; auto.
+Qed.
+
+Lemma pred_sepcon_derives:
+ forall {A B : Type} {ND: NatDed A} {SL: SepLog A}
+  (f1 f2: B -> A) (P: B -> Prop),
+ (forall i, P i -> (f1 i |-- f2 i)) ->
+ (pred_sepcon f1 P |-- pred_sepcon f2 P).
+Proof.
+intros.
+rewrite !pred_sepcon_eq.
+Intros al.
+Exists al.
+rewrite prop_true_andp by auto.
+apply iter_sepcon_derives.
+intros.
+apply H.
+rewrite <- H0.
+auto.
+Qed.
+
+Lemma distribute_pred_sepcon:
+ forall {A B: Type} {NA: NatDed A} {SA: SepLog A}{CA: ClassicalSep A}
+        (e: A) (f: B -> A) (P: B -> Prop),
+   (e |-- emp) -> (e |-- e * e) -> 
+   (e * pred_sepcon f P |-- pred_sepcon (fun i => e * f i) P).
+Proof.
+intros.
+rewrite !pred_sepcon_eq.
+Intros l; normalize; Exists l; rewrite prop_true_andp by auto;
+clear H1 H2 P.
+induction l; simpl. rewrite sepcon_emp; auto.
+eapply derives_trans; [apply sepcon_derives; [apply H0 | apply derives_refl ] | ].
+rewrite !sepcon_assoc.
+apply sepcon_derives; auto.
+rewrite <- sepcon_assoc.
+pull_left (f a).
+rewrite !sepcon_assoc.
+apply sepcon_derives; auto.
+Qed.
+
+Lemma repr64_inj_unsigned: (* move to floyd *)
+  forall i j,
+    0 <= i <= Int64.max_unsigned ->
+    0 <= j <= Int64.max_unsigned ->
+    Int64.repr i = Int64.repr j -> i=j.
+Proof.
+intros.
+rewrite <- (Int64.unsigned_repr i) by rep_lia.
+rewrite <- (Int64.unsigned_repr j) by rep_lia.
+congruence.
+Qed.
+
 Lemma value_defined_tarray {cs: compspecs}:
  forall t n vl,
   Zlength vl = n -> 
@@ -25,57 +178,6 @@ induction x; destruct y; simpl; intros; try discriminate; auto.
 inv H0.
 f_equal; auto.
 Qed.
-
-(*
-Lemma data_at_float_value_eq {cs: compspecs}:
-  forall sh1 sh2 v1 v2 p,
-   readable_share sh1 ->
-   readable_share sh2 ->
-   data_at sh1 tdouble (Vfloat v1) p *
-   data_at sh2 tdouble (Vfloat v2) p 
-  |-- !! (v1=v2).
-Proof.
-intros.
-sep_apply data_at_values_cohere.
-Intros. inv H1. entailer!.
-Qed.
-
-Lemma data_at_array_float_value_eq {cs: compspecs}:
-  forall sh1 sh2 n v1 v2 p,
-   readable_share sh1 ->
-   readable_share sh2 ->
-   data_at sh1 (tarray tdouble n) (map Vfloat v1) p *
-   data_at sh2 (tarray tdouble n) (map Vfloat v2) p 
-  |-- !! (v1=v2).
-Proof.
-intros.
-saturate_local.
-sep_apply data_at_values_cohere.
-red; simpl. change (unfold_reptype ?x) with x.
-split;  list_solve. red; simpl. list_simplify. simpl. auto.
-red; simpl. change (unfold_reptype ?x) with x.
-split;  list_solve. red; simpl. list_simplify. simpl. auto.
-entailer!.
-clear - H6.
-revert v2 H6; induction v1; destruct v2; simpl; intros; try congruence.
-inv H6.
-f_equal; auto.
-Qed.
-
-Lemma data_at_int_value_eq {cs: compspecs}:
-  forall sh1 sh2 v1 v2 p,
-   readable_share sh1 ->
-   readable_share sh2 ->
-   data_at sh1 tuint (Vint v1) p *
-   data_at sh2 tuint (Vint v2) p 
-  |-- !! (v1=v2).
-Proof.
-intros.
-sep_apply data_at_values_cohere.
-Intros. inv H1. entailer!.
-Qed.
-
-*)
 
 Lemma divu64_repr: (* move to floyd *)
  forall i j,

@@ -30,10 +30,11 @@ double dotprod(double *vec1, double *vec2, unsigned n) {
   unsigned delta = 0;
   unsigned delta_next;
   for (t=0; t<T; t++) {
-    dtasks[t].vec1=vec1+delta;
-    dtasks[t].vec2=vec2+delta;
+    struct dotprod_task *tp = dtasks+t; /* need this workaround for VST issue #613 */
+    tp->vec1=vec1+delta;
+    tp->vec2=vec2+delta;
     unsigned delta_next = ((ubig)(t+1))*((ubig)n)/((ubig)T);
-    dtasks[t].n= delta_next-delta;
+    tp->n= delta_next-delta;
     delta=delta_next;
   }
   do_tasks(tasks, T);

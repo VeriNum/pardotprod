@@ -234,6 +234,7 @@ Definition _t : ident := $"t".
 Definition _task : ident := $"task".
 Definition _tasks : ident := $"tasks".
 Definition _test : ident := $"test".
+Definition _tp : ident := $"tp".
 Definition _vec1 : ident := $"vec1".
 Definition _vec2 : ident := $"vec2".
 Definition _w : ident := $"w".
@@ -242,7 +243,6 @@ Definition _t'2 : ident := 129%positive.
 Definition _t'3 : ident := 130%positive.
 Definition _t'4 : ident := 131%positive.
 Definition _t'5 : ident := 132%positive.
-Definition _t'6 : ident := 133%positive.
 
 Definition v_tasks := {|
   gvar_info := (tptr (Tstruct _task noattr));
@@ -337,9 +337,8 @@ Definition f_dotprod := {|
   fn_vars := nil;
   fn_temps := ((_result, tdouble) :: (_T, tuint) :: (_t, tuint) ::
                (_delta, tuint) :: (_delta_next, tuint) ::
+               (_tp, (tptr (Tstruct _dotprod_task noattr))) ::
                (_delta_next__1, tuint) ::
-               (_t'6, (tptr (Tstruct _dotprod_task noattr))) ::
-               (_t'5, (tptr (Tstruct _dotprod_task noattr))) ::
                (_t'4, (tptr (Tstruct _dotprod_task noattr))) ::
                (_t'3, (tptr (Tstruct _task noattr))) :: (_t'2, tdouble) ::
                (_t'1, (tptr (Tstruct _dotprod_task noattr))) :: nil);
@@ -359,57 +358,48 @@ Definition f_dotprod := {|
               Sbreak)
             (Ssequence
               (Ssequence
-                (Sset _t'6
+                (Sset _t'4
                   (Evar _dtasks (tptr (Tstruct _dotprod_task noattr))))
+                (Sset _tp
+                  (Ebinop Oadd
+                    (Etempvar _t'4 (tptr (Tstruct _dotprod_task noattr)))
+                    (Etempvar _t tuint)
+                    (tptr (Tstruct _dotprod_task noattr)))))
+              (Ssequence
                 (Sassign
                   (Efield
                     (Ederef
-                      (Ebinop Oadd
-                        (Etempvar _t'6 (tptr (Tstruct _dotprod_task noattr)))
-                        (Etempvar _t tuint)
-                        (tptr (Tstruct _dotprod_task noattr)))
+                      (Etempvar _tp (tptr (Tstruct _dotprod_task noattr)))
                       (Tstruct _dotprod_task noattr)) _vec1 (tptr tdouble))
                   (Ebinop Oadd (Etempvar _vec1 (tptr tdouble))
-                    (Etempvar _delta tuint) (tptr tdouble))))
-              (Ssequence
+                    (Etempvar _delta tuint) (tptr tdouble)))
                 (Ssequence
-                  (Sset _t'5
-                    (Evar _dtasks (tptr (Tstruct _dotprod_task noattr))))
                   (Sassign
                     (Efield
                       (Ederef
-                        (Ebinop Oadd
-                          (Etempvar _t'5 (tptr (Tstruct _dotprod_task noattr)))
-                          (Etempvar _t tuint)
-                          (tptr (Tstruct _dotprod_task noattr)))
+                        (Etempvar _tp (tptr (Tstruct _dotprod_task noattr)))
                         (Tstruct _dotprod_task noattr)) _vec2 (tptr tdouble))
                     (Ebinop Oadd (Etempvar _vec2 (tptr tdouble))
-                      (Etempvar _delta tuint) (tptr tdouble))))
-                (Ssequence
-                  (Sset _delta_next__1
-                    (Ecast
-                      (Ebinop Odiv
-                        (Ebinop Omul
-                          (Ecast
-                            (Ebinop Oadd (Etempvar _t tuint)
-                              (Econst_int (Int.repr 1) tint) tuint) tulong)
-                          (Ecast (Etempvar _n tuint) tulong) tulong)
-                        (Ecast (Etempvar _T tuint) tulong) tulong) tuint))
+                      (Etempvar _delta tuint) (tptr tdouble)))
                   (Ssequence
+                    (Sset _delta_next__1
+                      (Ecast
+                        (Ebinop Odiv
+                          (Ebinop Omul
+                            (Ecast
+                              (Ebinop Oadd (Etempvar _t tuint)
+                                (Econst_int (Int.repr 1) tint) tuint) tulong)
+                            (Ecast (Etempvar _n tuint) tulong) tulong)
+                          (Ecast (Etempvar _T tuint) tulong) tulong) tuint))
                     (Ssequence
-                      (Sset _t'4
-                        (Evar _dtasks (tptr (Tstruct _dotprod_task noattr))))
                       (Sassign
                         (Efield
                           (Ederef
-                            (Ebinop Oadd
-                              (Etempvar _t'4 (tptr (Tstruct _dotprod_task noattr)))
-                              (Etempvar _t tuint)
-                              (tptr (Tstruct _dotprod_task noattr)))
+                            (Etempvar _tp (tptr (Tstruct _dotprod_task noattr)))
                             (Tstruct _dotprod_task noattr)) _n tuint)
                         (Ebinop Osub (Etempvar _delta_next__1 tuint)
-                          (Etempvar _delta tuint) tuint)))
-                    (Sset _delta (Etempvar _delta_next__1 tuint)))))))
+                          (Etempvar _delta tuint) tuint))
+                      (Sset _delta (Etempvar _delta_next__1 tuint))))))))
           (Sset _t
             (Ebinop Oadd (Etempvar _t tuint) (Econst_int (Int.repr 1) tint)
               tuint))))
