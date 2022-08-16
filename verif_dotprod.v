@@ -651,13 +651,13 @@ replace (force_val _) with (field_address0 (tarray tdouble n) (SUB delt t) p2)
       simpl; f_equal; lia).
 forward.
   { entailer!.
-    apply repr64_inj_unsigned in H20; try rep_lia.
+    apply repr_inj_unsigned64 in H20; try rep_lia.
     rewrite Int.unsigned_repr in H20 by rep_lia.
     lia. }  
 forward.
 forward.
 rewrite add_repr, !Int.unsigned_repr, mul64_repr  by rep_lia.
-rewrite divu64_repr; [ | | rep_lia].
+rewrite divu_repr64; [ | | rep_lia].
 2:{ clear - H4 H0 Hn H1.
   assert (T * Int.max_unsigned <= Int64.max_unsigned) by rep_lia.
   split; try lia.

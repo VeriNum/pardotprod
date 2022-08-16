@@ -3,73 +3,6 @@ Require Import VST.msl.iter_sepcon.
 
 Open Scope logic.
 
-Lemma field_address0_SUB_SUB {cs: compspecs}:
- forall t n1 n2 i j p,
- n2 = j+n1 ->
- 0 <= i <= n1 -> 0 <= j ->
- field_address0 (tarray t n1) (SUB i) (field_address0 (tarray t n2) (SUB j) p) =
- field_address0 (tarray t n2) (SUB (i+j)) p.
-Proof.
-intros * Hn2 Hn1 Hj.
-subst n2.
-unfold field_address0.
-destruct (field_compatible0_dec (tarray t (j + n1)) (SUB (i + j)) p).
--
-rewrite !if_true.
-+ simpl. rewrite offset_offset_val. f_equal. lia.
-+
-eapply field_compatible0_array_smaller1; try eassumption; lia.
-+
-rewrite if_true by (eapply field_compatible0_array_smaller1; try eassumption; lia).
-simpl.
-destruct f as [? [? [? [? [? ?]]]]].
-split3; auto. split3; [ | | split]; auto.
-*
-destruct p; try contradiction.
-red in H1|-*.
-unfold sizeof in *.
-simpl Ctypes.sizeof in *.
-rewrite Z.max_r in * by lia.
-rewrite Z.mul_add_distr_l in H1.
-pose proof (Ctypes.sizeof_pos t).
-simpl.
-rewrite <- (Ptrofs.repr_unsigned i0).
-rewrite ptrofs_add_repr.
-rewrite Ptrofs.unsigned_repr.
-lia.
-assert (Ctypes.sizeof t * n1 >= 0) by nia.
-rep_lia.
-*
-destruct p; try contradiction.
-simpl in H4.
-red in H2|-*; simpl in H2|-*.
-apply align_compatible_rec_Tarray. intros.
-eapply align_compatible_rec_Tarray_inv with (i:=i1+j) in H2; try lia.
-rewrite Z.mul_add_distr_l in H2.
-rewrite <- (Ptrofs.repr_unsigned i0), ptrofs_add_repr.
-rewrite Ptrofs.unsigned_repr.
-unfold sizeof.
-replace  (Ptrofs.unsigned i0 + (0 + Ctypes.sizeof t * j) + Ctypes.sizeof t * i1)
- with   (Ptrofs.unsigned i0 + (Ctypes.sizeof t * i1 + Ctypes.sizeof t * j))
-  by lia; auto.
-rewrite Z.add_0_l.
-unfold sizeof.
-pose proof (Ctypes.sizeof_pos t).
-assert (0 <= Ctypes.sizeof t * j <= Ctypes.sizeof t * j + Ctypes.sizeof t * i1) by nia.
-red in H1.
-simpl in H1.
-rewrite Z.max_r in H1 by lia.
-rewrite Z.mul_add_distr_l in H1.
-assert (Ctypes.sizeof t * i1 <= Ctypes.sizeof t * n1) by nia.
-rep_lia.
--
-if_tac; auto.
-if_tac; auto.
-contradiction n. clear n.
-simpl in H.
-auto with field_compatible.
-Qed.
-
 Lemma sepcon_pred_sepcon:
  forall {A B : Type} {ND: NatDed A} {SL: SepLog A}{CA: ClassicalSep A}
   (f1 f2: B -> A) (P: B -> Prop),
@@ -144,31 +77,6 @@ rewrite !sepcon_assoc.
 apply sepcon_derives; auto.
 Qed.
 
-Lemma repr64_inj_unsigned: (* move to floyd *)
-  forall i j,
-    0 <= i <= Int64.max_unsigned ->
-    0 <= j <= Int64.max_unsigned ->
-    Int64.repr i = Int64.repr j -> i=j.
-Proof.
-intros.
-rewrite <- (Int64.unsigned_repr i) by rep_lia.
-rewrite <- (Int64.unsigned_repr j) by rep_lia.
-congruence.
-Qed.
-
-Lemma value_defined_tarray {cs: compspecs}:
- forall t n vl,
-  Zlength vl = n -> 
-  Forall (value_defined t) vl ->
-  value_defined (tarray t n) vl.
-Proof.
-intros.
-red. rewrite type_induction.type_func_eq. unfold tarray.
-split; auto.
-subst.
-unfold unfold_reptype. simpl. rep_lia.
-Qed.
-
 Lemma map_inj: forall {A}{B} (f: A -> B), 
    (forall u v, f u = f v -> u=v) ->
    forall x y, 
@@ -177,18 +85,6 @@ Proof.
 induction x; destruct y; simpl; intros; try discriminate; auto.
 inv H0.
 f_equal; auto.
-Qed.
-
-Lemma divu64_repr: (* move to floyd *)
- forall i j,
-  0 <= i <= Int64.max_unsigned ->
-  0 <= j <= Int64.max_unsigned ->
-  Int64.divu (Int64.repr i) (Int64.repr j) = Int64.repr (i / j).
-Proof.
-intros.
-unfold Int64.divu.
-rewrite !Int64.unsigned_repr by rep_lia.
-auto.
 Qed.
 
 Definition iota (n: Z) : list Z := map Z.of_nat (seq 0%nat (Z.to_nat n)).
