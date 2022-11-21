@@ -1,10 +1,11 @@
 Require Import VST.floyd.proofauto.
-Require Import VST.concurrency.conclib.
-Require Import VST.concurrency.ghosts.
+Require Import VST.concurrency.conclib.  (* for forward_spawn *)
+Require Import VST.concurrency.ghosts. (* for unreadable_bot *)
+(*
 Require Import VST.concurrency.cancelable_invariants.
-Require Import VST.concurrency.lock_specs.
-Require Import VST.atomics.verif_lock.
-Require Import VST.floyd.library.
+*)
+From VSTlib Require Import spec_locks spec_threads spec_malloc.
+Require Import VST.msl.iter_sepcon.
 Require Import basic_lemmas.
 Require Import spec_parsplit.
 Require Import parsplit.
@@ -113,7 +114,7 @@ Lemma body_make_tasks: semax_body Vprog (Gprog TP)
                            f_make_tasks (make_tasks_spec TP).
 Proof.
 start_function.
-forward_call (tarray t_task T, gv). {
+forward_call (malloc_spec_sub(tarray t_task T))  gv. {
   apply prop_right.
   simpl.
   normalize. do 3 f_equal. lia.
@@ -430,7 +431,7 @@ sep_apply (data_at_value_eq Ers Ers2 tvoid clo (snd (Znth i fclo))
                         (field_address t_task (DOT _closure)
          (field_address (tarray t_task (Zlength fclo)) (SUB i) p))); auto.
 sep_apply (data_at_value_eq Ers Ers2 
-                      (Tfunction (Tcons (tptr tvoid) Tnil) tvoid cc_default)
+                      (Tfunction (Ctypes.Tcons (tptr tvoid) Ctypes.Tnil) tvoid cc_default)
                        f (fst (Znth i fclo)) 
                         (field_address t_task (DOT _f)
          (field_address (tarray t_task (Zlength fclo)) (SUB i) p))); auto.

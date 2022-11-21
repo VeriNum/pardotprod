@@ -1,20 +1,27 @@
+CFILES= main.c dotprod.c parsplit.c seqdotprod.c
+VSTLIB=../vst/lib
+INCLUDE=$(VSTLIB)/include
+
 CC=gcc
-CFLAGS=-O2
+CFLAGS=-O2 -I$(INCLUDE)
 
-CFILES= main.c dotprod.c parsplit.c
-
-dotprod: main.o dotprod.o parsplit.o threads.o SC_atomics.o
+dotprod: main.o dotprod.o parsplit.o threads.o locks.o SC_atomics.o
 	gcc $^ -o $@
 
 main.o: main.c dotprod.h
 
 dotprod.o: dotprod.c parsplit.h
 
-parsplit.o: parsplit.c parsplit.h threads.h
+parsplit.o: parsplit.c parsplit.h $(INCLUDE)/VSTthreads.h
 
-threads.o: threads.c threads.h SC_atomics.h
+threads.o: $(VSTLIB)/src/threads.c $(INCLUDE)/VSTthreads.h 
+	$(CC) $(CFLAGS) -c $< -o $@
 
-SC_atomics.o: SC_atomics.c SC_atomics.h
+locks.o: $(VSTLIB)/src/locks.c $(INCLUDE)/VSTthreads.h $(INCLUDE)/SC_atomics.h
+	$(CC) $(CFLAGS) -c $< -o $@
+
+SC_atomics.o: $(VSTLIB)/src/SC_atomics.c $(INCLUDE)/SC_atomics.h
+	$(CC) $(CFLAGS) -c $< -o $@
 
 test: dotprod
 	time ./dotprod 1000000 4 1000
@@ -28,14 +35,28 @@ test: dotprod
 clean:
 	rm -f *.o dotprod *{.vo,vo?,glob}
 
-CLIGHTGEN=/cygdrive/c/local/CompCert-3.10-32/clightgen
+CLIGHTGEN=clightgen
+CGFLAGS=-I$(INCLUDE)
 
-ifdef CLIGHTGEN
 cv-files: $(patsubst %.c,%.v,$(CFILES))
 
-$(patsubst %.c,%.v,$(CFILES)):  threads_stub.c $(CFILES)
-	$(CLIGHTGEN) ${CGFLAGS} -normalize threads_stub.c $(CFILES)
-endif
+main.v: main.c
+	$(CLIGHTGEN) ${CGFLAGS} -normalize $< -o $@
+
+dotprod.v: dotprod.c
+	$(CLIGHTGEN) ${CGFLAGS} -normalize $< -o $@
+
+parsplit.v: parsplit.c
+	$(CLIGHTGEN) ${CGFLAGS} -normalize $< -o $@
+
+seqdotprod.v: seqdotprod.c
+	$(CLIGHTGEN) ${CGFLAGS} -normalize $< -o $@
+
+locks.v: $(VSTLIB)/src/locks.c
+	$(CLIGHTGEN) ${CGFLAGS} -normalize $< -o $@
+
+threads.v: $(VSTLIB)/src/threads.c
+	$(CLIGHTGEN) ${CGFLAGS} -normalize $< -o $@
 
 COQC=coqc
 COQDEP=coqdep

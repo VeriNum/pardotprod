@@ -3,6 +3,7 @@ Require Import VST.concurrency.conclib.
 Require Import basic_lemmas.
 Require Import spec_parsplit.
 Require Import dotprod.
+From VSTlib Require Import spec_malloc.
 
 #[export] Instance CompSpecs : compspecs. make_compspecs prog. Defined.
 Definition Vprog : varspecs. mk_varspecs prog. Defined.
@@ -157,7 +158,7 @@ Definition dtask_pred (T: Z) (input: dtask_input_type) (q: query) (p: val) :=
         !! (n = Zlength v2 /\ n <= Int.max_unsigned) &&
         field_at (q_share q) t_dtask (DOT _vec1) p1 p *
         field_at (q_share q) t_dtask (DOT _vec2) p2 p *
-        field_at (q_share q) t_dtask (DOT _n) (vint n) p *
+        field_at (q_share q) t_dtask (DOT _n) (vptrofs n) p *
         a_pred q (field_at Ews t_dtask (DOT _result) 
                  (answer_val q (Vfloat (dotprod (v1,v2)))) p) *
         data_at (q_share q) (tarray tdouble n) (map Vfloat v1) p1 *
@@ -219,9 +220,12 @@ destruct H3 as [? [? [? ?]]].
 rewrite !field_at_data_at. simpl.
 sep_apply (data_at_values_cohere Ers Ers2 (tptr tdouble) p21 p11); auto.
 sep_apply (data_at_values_cohere Ers Ers2 (tptr tdouble) p22 p12); auto.
-sep_apply  (data_at_values_cohere Ers Ers2 tuint); auto. 
+sep_apply  (data_at_values_cohere Ers Ers2 size_t); auto.
 Intros. subst. 
-apply repr_inj_unsigned in H7; try rep_lia.
+(* Should really have a lemma 
+  vptrofs_inj  similar to repr_inj_unsigned *)
+apply Clight_evsem.Vptrofs_inj in H7.
+rewrite !Ptrofs.unsigned_repr in H7 by rep_lia.
 rewrite H7.
 set (n := Zlength v11) in *.
 clear - H H1 H7.
@@ -244,7 +248,7 @@ Lemma make_REMEMBER_ASK:
  0 < T ->
   data_at Ews (tarray tdouble n) (map Vfloat v1) p1
  * data_at Ews  (tarray tdouble n)  (map Vfloat v2) p2
-  * data_at Ews t_dtask (p1,(p2, (vint n, Vundef))) dtp
+  * data_at Ews t_dtask (p1,(p2, (vptrofs n, Vundef))) dtp
 |-- dtask_pred T ((v1,v2),(p1,p2)) REMEMBER dtp
       * dtask_pred T ((v1,v2),(p1,p2)) ASK    dtp.
 Proof.
@@ -269,7 +273,7 @@ Lemma unmake_REMEMBER_ANSWER:
   n = Zlength v1 ->
   dtask_pred T (v1, v2, (p1, p2)) REMEMBER dtp
   * dtask_pred T (v1, v2, (p1, p2)) ANSWER dtp
-  |-- data_at Ews t_dtask  (p1,(p2, (vint n, Vfloat (dotprod (v1,v2))))) dtp
+  |-- data_at Ews t_dtask  (p1,(p2, (vptrofs n, Vfloat (dotprod (v1,v2))))) dtp
       * data_at Ews (tarray tdouble n) (map Vfloat v1) p1
       * data_at Ews (tarray tdouble n) (map Vfloat v2) p2.
 Proof.
@@ -335,9 +339,9 @@ Definition tasking T (gv: globals) :=
 Definition dotprod_spec :=
   DECLARE _dotprod
   WITH T:Z, p1:val, p2: val, v1: list float, v2: list float, gv: globals
-  PRE [ tptr tdouble, tptr tdouble, tuint ]
+  PRE [ tptr tdouble, tptr tdouble, size_t ]
     PROP ( Zlength v1 = Zlength v2; Zlength v1 <= Int.max_unsigned)
-    PARAMS ( p1; p2; Vint (Int.repr (Zlength v1))) GLOBALS(gv)
+    PARAMS ( p1; p2; Vptrofs (Ptrofs.repr (Zlength v1))) GLOBALS(gv)
     SEP (tasking T gv;
            data_at Ews (tarray tdouble (Zlength v1)) (map Vfloat v1) p1;
            data_at Ews (tarray tdouble (Zlength v2)) (map Vfloat v2) p2)
@@ -354,17 +358,17 @@ Definition make_dotprod_tasks_spec :=
   PRE [ tuint ]
      PROP (1 <= T < 10000)
      PARAMS (vint T) GLOBALS (gv)
-     SEP (library.mem_mgr gv;
+     SEP (mem_mgr gv;
            data_at_ Ews tuint (gv _num_threads);
            data_at_ Ews (tptr t_task) (gv _tasks);
            data_at_ Ews (tptr t_dtask) (gv _dtasks))
    POST [ tvoid ]
-     PROP() RETURN() SEP(library.mem_mgr gv; tasking T gv; TT).
+     PROP() RETURN() SEP(mem_mgr gv; tasking T gv; TT).
 
 Definition Gprog : funspecs :=
    dotprod_worker_spec :: dotprod_spec ::
-    (DECLARE _malloc (@library.malloc_spec' CompSpecs)) ::
-  [ exit_spec;
+  [ spec_threads.exit_thread_spec;
+    spec_malloc.malloc_spec';
     make_tasks_spec dtask_package; 
     initialize_task_spec dtask_package; do_tasks_spec dtask_package].
 
@@ -393,7 +397,7 @@ forward_call .
 Intros tp.
 forward.
 forward.
-forward_call (tarray t_dtask T, gv).
+forward_call (malloc_spec_sub(tarray t_dtask T))  gv.
 entailer!.
 simpl.
 f_equal; f_equal. f_equal; lia.
@@ -413,8 +417,8 @@ forward_for_simple_bound T
  (EX t:Z, 
    PROP ( )
    LOCAL (gvars gv; temp _T (vint T))
-   SEP (library.mem_mgr gv;
-   library.malloc_token Ews (tarray t_dtask T) dtp;
+   SEP (mem_mgr gv;
+   malloc_token Ews (tarray t_dtask T) dtp;
    data_at_ Ews (tarray t_dtask T) dtp;
    task_array dtask_package (
         map (fun i => (gv _dotprod_worker, 
@@ -570,6 +574,31 @@ rewrite Zlength_sublist by Zlength_solve.
 cancel.
 Qed.
 
+Lemma sem_add_pl_ptrofs: forall {CS: compspecs} t0 v i,
+  Archi.ptr64 = true ->
+   complete_type cenv_cs t0 = true ->
+  isptr v ->
+  0 <= i <= Ptrofs.max_unsigned ->
+   force_val (sem_add_ptr_long t0 v (Vptrofs (Ptrofs.repr i))) =
+   offset_val (sizeof t0 * i) v.
+Proof.
+  intros.
+  destruct v; try contradiction.
+  unfold sem_add_ptr_long.
+  rewrite H0. simpl. f_equal.
+  f_equal. rewrite Ptrofs.of_int64_to_int64 by assumption.
+  rewrite ptrofs_mul_repr. reflexivity.
+Qed.
+
+Lemma Vptrofs_Vlong:
+ Archi.ptr64 = true ->
+ forall x, Vptrofs (Ptrofs.repr x) = Vlong (Int64.repr x).
+Proof.
+intros.
+unfold Vptrofs. rewrite H. 
+rewrite ptrofs_to_int64_repr by auto. auto.
+Qed.
+
 Lemma body_dotprod: semax_body Vprog Gprog f_dotprod dotprod_spec.
 Proof.
 start_function.
@@ -590,9 +619,9 @@ freeze FR1:= (data_at Ews _ _ (gv _num_threads)) (task_array _ _ _).
 forward_for_simple_bound T 
    (EX t:Z,   
     PROP ()
-    LOCAL (temp _delta (vint (delt t)); temp _T (vint T);
+    LOCAL (temp _delta (vptrofs (delt t)); temp _T (vint T);
                 gvars gv; temp _vec1 p1; temp _vec2 p2; 
-                temp _n (vint n))
+                temp _n (vptrofs n))
    SEP (FRZL FR1; data_at Ews (tptr t_task) tp (gv _tasks);
           data_at Ews (tptr t_dtask) dtp (gv _dtasks);
           pred_sepcon (fun i => dtask_pred T (nthtask i) REMEMBER
@@ -640,50 +669,58 @@ replace  (field_address0 (tarray t_dtask T) (SUB t) dtp)
   by auto with field_compatible.
 rewrite <- (field_at_data_at Ews (tarray t_dtask T) (SUB t)).
 forward.
-replace (force_val _) with (field_address0 (tarray tdouble n) (SUB delt t) p1)
- by (rewrite sem_add_pi' by (auto; rep_lia);
+replace (force_val _) with (field_address0 (tarray tdouble n) (SUB delt t) p1).
+2:{ (* This proof may work only in 64-bit mode *)
+  rewrite sem_add_pl_ptrofs; try reflexivity; auto with field_compatible; try rep_lia.
+      rewrite field_address0_offset by auto with field_compatible.
+     simpl; f_equal; lia.
+  (*  (* This proof works in 32-bit mode, probably *)
+     rewrite sem_add_pi' by (auto; rep_lia);
       rewrite field_address0_offset by auto with field_compatible;
-      simpl; f_equal; lia).
-forward.
-replace (force_val _) with (field_address0 (tarray tdouble n) (SUB delt t) p2)
- by (rewrite sem_add_pi' by (auto; rep_lia);
-      rewrite field_address0_offset by auto with field_compatible;
-      simpl; f_equal; lia).
-forward.
-  { entailer!.
-    apply repr_inj_unsigned64 in H20; try rep_lia.
-    rewrite Int.unsigned_repr in H20 by rep_lia.
-    lia. }  
+      simpl; f_equal; lia. *)
+}
 forward.
 forward.
-rewrite add_repr, !Int.unsigned_repr, mul64_repr  by rep_lia.
+entailer!.
+rewrite Int.unsigned_repr in H20 by rep_lia.
+apply repr_inj_unsigned64 in H20;  rep_lia.
+forward.
+forward.
+rewrite add_repr. 
+rewrite ptrofs_to_int64_repr by reflexivity. (* 64-bit  mode only *)
+rewrite mul64_repr.
 rewrite divu_repr64; [ | | rep_lia].
 2:{ clear - H4 H0 Hn H1.
-  assert (T * Int.max_unsigned <= Int64.max_unsigned) by rep_lia.
-  split; try lia.
+  rewrite Int.unsigned_repr by rep_lia.
+  assert (Int.max_unsigned * Int.max_unsigned <= Int64.max_unsigned) by rep_lia.
+  split. lia. 
   eapply Z.le_trans; [ | apply H].
-  apply Z.mul_le_mono_nonneg; lia.
+  apply Z.mul_le_mono_nonneg; rep_lia.
 }
+rewrite !Int.unsigned_repr by rep_lia.
 fold (delta n T (t+1)).
-rewrite Int64.unsigned_repr
- by (pose proof delta_props n T t ltac:(lia); rep_lia).
+rewrite ptrofs_to_int64_repr by reflexivity.  (* 64-bit mode *)
+rewrite sub64_repr.
 rewrite !(pred_sepcon_isolate t zeq _ (fun i:Z => 0 <= i < t+1)) by lia.
 replace (fun y : Z => 0 <= y < t + 1 /\ y <> t)
  with (fun i : Z => 0 <= i < t)
   by (extensionality j; apply prop_ext; split; intro; lia).
 replace (T - t - 1) with (T - (t+1)) by lia.
 entailer!.
+fold delt.
 rewrite !(sublist_split (delt t) (delt(t+1)) (Zlength v1)) by lia.
 rewrite !map_app.
- rewrite !(split2_data_at_Tarray_app (delt (t+1)-delt t)) by list_solve.
+rewrite !(split2_data_at_Tarray_app (delt (t+1)-delt t)) by list_solve.
 rewrite !field_address0_SUB_SUB by lia.
 rewrite Z.sub_simpl_r.
 replace  (Zlength v1 - delt t - (delt (t + 1) - delt t)) with (Zlength v1 - delt (t+1)) by lia.
-replace (delt t + (Zlength v1 - delt t)) with (Zlength v1) by  lia.
 cancel.
 eapply derives_trans; [ | apply make_REMEMBER_ASK with (n:= delt (t+1) - delt t); lia].
 rewrite <- (field_at_data_at Ews (tarray t_dtask T) (SUB t)).
 cancel.
+rewrite !field_address0_clarify by auto with field_compatible.
+rewrite Vptrofs_Vlong by reflexivity.  (* 64-bit mode *)
+apply derives_refl.
 -
 thaw FR1.
 replace (delt T) with n by (unfold delt; rewrite delta_T; lia).
@@ -813,6 +850,7 @@ rewrite !Zlength_sublist by lia.
 rewrite snd_Znth_fclo by lia.
 rewrite <- field_at_SUB_t_DOT_result by (auto; lia).
 rewrite prop_true_andp by (split; lia).
+rewrite Vptrofs_Vlong by reflexivity.  (* 64-bit mode *)
 cancel.
 +
 
@@ -825,8 +863,6 @@ cancel.
 rewrite <- H.
 apply finish_dotprod; auto.
 Qed.
-
- 
 
 
 

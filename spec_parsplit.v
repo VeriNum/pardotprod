@@ -1,8 +1,13 @@
 Require Import VST.floyd.proofauto.
+From VSTlib Require Import spec_locks spec_threads spec_malloc.
+From VSTlib Require verif_locks verif_malloc.
+Require Import VST.msl.iter_sepcon.
+(*
 Require Import VST.concurrency.conclib.
 Require Import VST.concurrency.lock_specs.
 Require Import VST.atomics.verif_lock.
 Require Import VST.floyd.library.
+*)
 Require Import parsplit.
 Require Import basic_lemmas.
 Open Scope logic.
@@ -11,9 +16,8 @@ Open Scope gfield_scope.
 #[export] Instance CompSpecs : compspecs. make_compspecs prog. Defined.
 Definition Vprog : varspecs. mk_varspecs prog. Defined.
 
-Definition spawn_spec := DECLARE _spawn spawn_spec.
-Definition malloc_spec := DECLARE _malloc malloc_spec'.
-Definition exit_spec := DECLARE _exit exit_spec'.
+#[export] Existing Instance verif_locks.M.
+#[export] Existing Instance verif_malloc.M.
 
 Inductive query : Set := REMEMBER | ASK | ANSWER.
 
@@ -107,9 +111,9 @@ Definition initialize_task_spec :=
  DECLARE _initialize_task
  WITH p: val, i: Z, f: val, clo: val, fclo: list (val*val) 
  PRE [ tptr t_task, tuint, 
-       tptr (Tfunction (Tcons (tptr tvoid) Tnil) tvoid cc_default), 
+       tptr (Tfunction (Ctypes.Tcons (tptr tvoid) Ctypes.Tnil) tvoid cc_default), 
        tptr tvoid ]
-   PROP(0 <= i < Zlength fclo)
+   PROP(0 <= i < Zlength fclo; i <= Int.max_unsigned)
    PARAMS (p; Vint (Int.repr i); f; clo)
    SEP(task_array fclo p)
  POST [ tvoid ]
@@ -141,8 +145,7 @@ Definition do_tasks_spec :=
     SEP(task_array fclo p; spectasks_list fclo inputs ANSWER).
 
 Definition Gprog : funspecs :=
-  [ spawn_spec; makelock_spec; freelock_spec; acquire_spec; release_spec;
-    malloc_spec; exit_spec;
-    thread_worker_spec; make_tasks_spec; initialize_task_spec; do_tasks_spec ].
+   [ thread_worker_spec; make_tasks_spec; initialize_task_spec; do_tasks_spec ]
+   ++ MallocASI ++ SpawnASI ++ lockASI.
 
 End TASK.
