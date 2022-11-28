@@ -65,6 +65,8 @@ COQFLAGS=$(COQPROJECT)
 
 proof: verif_dotprod.vo verif_parsplit.vo
 
+seqdotprod: verif_seqdotprod.vo
+
 %.vo: %.v
 	$(COQC) $(COQFLAGS) $*.v
 
