@@ -146,6 +146,6 @@ Definition do_tasks_spec :=
 
 Definition Gprog : funspecs :=
    [ thread_worker_spec; make_tasks_spec; initialize_task_spec; do_tasks_spec ]
-   ++ MallocASI ++ SpawnASI ++ LockASI.
+   ++ MallocASI ++ ThreadsASI ++ LockASI.
 
 End TASK.
