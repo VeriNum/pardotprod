@@ -454,7 +454,7 @@ subst fclo'.
 rewrite upd_Znth_app2 by list_simplify.
 list_simplify; rewrite !Znth_iota by lia.
 reflexivity.
-rewrite <- app_nil_end.
+rewrite app_nil_r.
 assert (i=t) by lia. subst.
 reflexivity.
 -

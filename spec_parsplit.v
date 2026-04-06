@@ -111,7 +111,7 @@ Definition initialize_task_spec :=
  DECLARE _initialize_task
  WITH p: val, i: Z, f: val, clo: val, fclo: list (val*val) 
  PRE [ tptr t_task, tuint, 
-       tptr (Tfunction (Ctypes.Tcons (tptr tvoid) Ctypes.Tnil) tvoid cc_default), 
+       tptr (Tfunction (cons (tptr tvoid) nil) tvoid cc_default), 
        tptr tvoid ]
    PROP(0 <= i < Zlength fclo; i <= Int.max_unsigned)
    PARAMS (p; Vint (Int.repr i); f; clo)

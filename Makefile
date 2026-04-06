@@ -1,5 +1,5 @@
 CFILES= main.c dotprod.c parsplit.c seqdotprod.c
-COQMF_COQLIB=$(shell coqc -where)
+COQMF_COQLIB=$(shell rocq -where)
 VSTLIB=$(COQMF_COQLIB)/user-contrib/VSTlib
 INCLUDE=$(VSTLIB)/include
 

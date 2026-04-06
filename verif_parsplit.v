@@ -431,7 +431,7 @@ sep_apply (data_at_value_eq Ers Ers2 tvoid clo (snd (Znth i fclo))
                         (field_address t_task (DOT _closure)
          (field_address (tarray t_task (Zlength fclo)) (SUB i) p))); auto.
 sep_apply (data_at_value_eq Ers Ers2 
-                      (Tfunction (Ctypes.Tcons (tptr tvoid) Ctypes.Tnil) tvoid cc_default)
+                      (Tfunction [tptr tvoid] tvoid cc_default)
                        f (fst (Znth i fclo)) 
                         (field_address t_task (DOT _f)
          (field_address (tarray t_task (Zlength fclo)) (SUB i) p))); auto.
