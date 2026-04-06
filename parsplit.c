@@ -1,8 +1,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <stddef.h>
-
-#include "threads.h"
+#include <VSTthreads.h>
 
 struct task {
   lock_t go, done;
@@ -22,7 +21,7 @@ int thread_worker(void *arg) {
 struct task *make_tasks(unsigned T) {
   struct task *tasks = (struct task *)malloc(T * sizeof (struct task));
   unsigned i;
-  if (!tasks) exit(1);
+  if (!tasks) exit_thread(1);
   for (i=1; i<T; i++) {
     struct task *t = tasks+i; /* need this workaround for VST issue #613 */
     t->go = makelock();
